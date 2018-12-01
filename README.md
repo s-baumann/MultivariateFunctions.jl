@@ -1,6 +1,6 @@
 # MultivariateFunctions.jl
 
-[![Build Status](https://travis-ci.com/s-baumann/UnivariateFunctions.jl.svg?branch=master)](https://travis-ci.org/s-baumann/UnivariateFunctions.jl)
+[![Build Status](https://travis-ci.com/s-baumann/MultivariateFunctions.jl.svg?branch=master)](https://travis-ci.org/s-baumann/MultivariateFunctions.jl)
 
 This implements single algebra and evaluation on Multivariate functions.
 There are a few ways in which it can be used.
