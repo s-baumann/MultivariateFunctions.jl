@@ -32,5 +32,4 @@ include("4_chebyshev_approximation.jl")
 export create_chebyshev_approximation
 include("5_ols_regression.jl")
 export create_ols_approximation, create_saturated_ols_approximation
-
 end
