@@ -7,7 +7,7 @@ makedocs(
 )
 
 deploydocs(
-    repo   = "github.com/s-baumann/MultivariateFunctions.jl.git",
+    repo   = "github.com/s-baumann/MultivariateFunctions.jl",
     julia  = "1.0",
     target = "build",
     deps   = nothing,
