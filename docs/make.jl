@@ -1,14 +1,14 @@
-using Distributions, Documenter, GLM
+using Documenter, MultivariateFunctions
 
 makedocs(
     format = :html,
-    sitename = "GLM",
-    modules = [GLM]
+    sitename = "MultivariateFunctions",
+    modules = [MultivariateFunctions]
 )
 
 deploydocs(
-    repo   = "github.com/JuliaStats/GLM.jl.git",
-    julia  = "0.6",
+    repo   = "github.com/s-baumann/MultivariateFunctions.jl.git",
+    julia  = "1.0",
     target = "build",
     deps   = nothing,
     make   = nothing
