@@ -1,7 +1,6 @@
 import Base.+, Base.-, Base./, Base.*, Base.^
 
 # PE_Units
-
 function change_base_(u::PE_Unit, new_base::Float64) # Intentially changing name so this is not exported.
     old_base = u.base_
     diff = new_base - old_base
@@ -31,6 +30,12 @@ function change_base_(u::PE_Unit, new_base::Float64) # Intentially changing name
     end
 end
 
+"""
+    change_base(f::PE_Function, new_bases::Dict{Symbol,Float64})
+This function changes the bases in the PE_Units of a PE_Function. This is useful for getting two
+PE_Functions comformable for simpler multiplication. Often a base change means that an array of
+PE_Functions are needed to represent a function. So an Array{PE_Function,1} is returned.
+"""
 function change_base(f::PE_Function, new_bases::Dict{Symbol,Float64})
     dims_dict = Dict{Symbol,Array{Tuple{Float64,PE_Unit},1}}()
     dims = keys(f.units_)
@@ -59,17 +64,44 @@ function *(u1::PE_Unit,u2::PE_Unit)
 end
 
 # PE_Functions
+"""
+   +(f::MultivariateFunction,number::Float64)
+   +(f::MultivariateFunction,number::Int)
 
+   A Multivariate Function can be added to an scalar to from a new MultivariateFunction. This action promotes a
+   PE_Function to a Sum_Of_Functions. The type of all other MultivariateFunctions is unchanged.
+"""
 function +(f::PE_Function,number::Float64)
     constant_function = PE_Function(number, 0.0,0.0,0)
     return Sum_Of_Functions([f, constant_function])
 end
+"""
+   -(f::MultivariateFunction,number::Float64)
+   -(f::MultivariateFunction,number::Int)
+
+   A scalar can be subtracted from a Multivariate Function. This action promotes a
+   PE_Function to a Sum_Of_Functions. The type of all other MultivariateFunctions is unchanged.
+"""
 function -(f::PE_Function, number::Float64)
     return +(f, -number)
 end
+"""
+   *(f::MultivariateFunction,number::Float64)
+   *(f::MultivariateFunction,number::Int)
+
+   A Multivariate can be multiplied by a scalar. This does not change the type of any MultivariateFunction.
+"""
 function *(f::PE_Function, number::Float64)
     return PE_Function(f.multiplier_*number, f.units_)
 end
+"""
+   /(f::MultivariateFunction,number::Float64)
+   /(f::MultivariateFunction,number::Int)
+
+   A Multivariate can be divided by a scalar. This does not change the type of any MultivariateFunction.
+   Note that the opposite operation cannot be done. While f / 5 is permitted 5 / f is not supported by this package.
+   It is not possible to divide by a function.
+"""
 function /(f::PE_Function, number::Float64)
     return *(f, 1/number )
 end
@@ -90,6 +122,13 @@ function /(f::PE_Function, number::Int)
     number_as_float = convert(Float64, number)
     return /(f, number_as_float)
 end
+"""
+   ^(f::MultivariateFunction,number::Int)
+
+   A Multivariate can be raised by a positive Integer power. This will generally promote a PE_Function to a Sum_Of_Functions.
+   Note that the opposite operation cannot be done. While f ^ 5 is permitted 5 ^ f is not supported by this package.
+   It is not possible to raise by the power of a function.
+"""
 function ^(f::PE_Function, number::Int)
     if number < 0
         error("Negative powers are not supported.")
@@ -108,7 +147,10 @@ end
 function ^(f::PE_Function, number::Float64)
     error("Cannot raise a PE_Function to a float value.")
 end
-
+"""
+    +(f1::MultivariateFunction, f2::MultivariateFunction)
+    Any two multivariate Functions can be added to form a MultivariateFunction reflecting the sum.
+"""
 function +(f1::PE_Function, f2::PE_Function)
     return Sum_Of_Functions([f1,f2])
 end
@@ -118,6 +160,9 @@ end
 function +(f1::PE_Function, f2::Piecewise_Function)
     return Piecewise_Function(f1 .+ f2.functions_, f2.thresholds_)
 end
+function +(f1::PE_Function, f2::Sum_Of_Piecewise_Functions)
+    return Sum_Of_Piecewise_Functions(f2.functions_,f2.global_funcs_ + f1)
+end
 
 function +(f1::Sum_Of_Functions, f2::PE_Function)
     return +(f2,f1)
@@ -125,7 +170,10 @@ end
 function +(f1::Piecewise_Function, f2::PE_Function)
     return +(f2,f1)
 end
-
+"""
+    -(f1::MultivariateFunction, f2::MultivariateFunction)
+    Any MultivariateFunction can be subtracted from another to form a MultivariateFunction reflecting the difference.
+"""
 function -(f1::PE_Function, f2::PE_Function)
     return +(f1,-1*f2)
 end
@@ -135,6 +183,9 @@ end
 function -(f1::PE_Function, f2::Piecewise_Function)
     return +(f1, -1*f2 )
 end
+function -(f1::PE_Function, f2::Sum_Of_Piecewise_Functions)
+    return +(f1,-1*f2)
+end
 
 function -(f1::Sum_Of_Functions, f2::PE_Function)
     return +(f1,1*f2)
@@ -142,7 +193,13 @@ end
 function -(f1::Piecewise_Function, f2::PE_Function)
     return +(f1,-1*f2)
 end
-
+function -(f1::Sum_Of_Piecewise_Functions, f2::PE_Function)
+    return +(f1,-1*f2)
+end
+"""
+    *(f1::MultivariateFunction, f2::MultivariateFunction)
+    Any two MultivariateFunctions can be multiplied to form a MultivariateFunction reflecting the product.
+"""
 function *(f1::PE_Function,f2::PE_Function)
     f1_bases = get_bases(f1)
     f2_bases = get_bases(f2)
@@ -174,11 +231,17 @@ end
 function *(f1::PE_Function, f2::Piecewise_Function)
     return Piecewise_Function(f1 .* f2.functions_, f2.thresholds_)
 end
+function *(f1::PE_Function, f2::Sum_Of_Piecewise_Functions)
+    return f1 * convert(Piecewise_Function, f2)
+end
 
 function *(f1::Sum_Of_Functions, f2::PE_Function)
     return *(f2,f1)
 end
 function *(f1::Piecewise_Function, f2::PE_Function)
+    return *(f2,f1)
+end
+function *(f1::Sum_Of_Piecewise_Functions, f2::PE_Function)
     return *(f2,f1)
 end
 
@@ -218,7 +281,7 @@ function /(f::Sum_Of_Functions, number::Int)
     number_as_float = convert(Float64, number)
     return /(f, number_as_float)
 end
-function ^(f::Sum_Of_Functions, number::Int)
+function ^(f::MultivariateFunction, number::Int)
     if number < 0
         error("Negative powers are not supported.")
     elseif number == 0
@@ -247,10 +310,16 @@ function +(f1::Sum_Of_Functions, f2::Piecewise_Function)
     end
     return Piecewise_Function(funcs, f2.thresholds_)
 end
-
+function +(f1::Sum_Of_Functions, f2::Sum_Of_Piecewise_Functions)
+    return Sum_Of_Piecewise_Functions(f2.functions_,f2.global_funcs_ + f1)
+end
 function +(f1::Piecewise_Function, f2::Sum_Of_Functions)
     return +(f2,f1)
 end
+function +(f1::Sum_Of_Piecewise_Functions, f2::Sum_Of_Functions)
+    return +(f2,f1)
+end
+
 
 function -(f1::Sum_Of_Functions, f2::Sum_Of_Functions)
     return Sum_Of_Functions([f1,-1*f2])
@@ -258,9 +327,15 @@ end
 function -(f1::Sum_Of_Functions, f2::Piecewise_Function)
     return +(f1, -1 * f2)
 end
+function -(f1::Sum_Of_Functions, f2::Sum_Of_Piecewise_Functions)
+    return +(f1,-1*f2)
+end
 
 function -(f1::Piecewise_Function, f2::Sum_Of_Functions)
     return +(f1, -1*f2)
+end
+function -(f1::Sum_Of_Piecewise_Functions, f2::Sum_Of_Functions)
+    return +(f1,-1*f2)
 end
 
 function *(f1::Sum_Of_Functions,f2::Sum_Of_Functions)
@@ -286,8 +361,14 @@ function *(f1::Sum_Of_Functions, f2::Piecewise_Function)
         return Piecewise_Function(funcs, f2.thresholds_)
     end
 end
+function *(f1::Sum_Of_Functions, f2::Sum_Of_Piecewise_Functions)
+    return f1 * convert(Piecewise_Function, f2)
+end
 
 function *(f1::Piecewise_Function, f2::Sum_Of_Functions)
+    return *(f2,f1)
+end
+function *(f1::Sum_Of_Piecewise_Functions, f2::Sum_Of_Functions)
     return *(f2,f1)
 end
 
@@ -330,8 +411,21 @@ function +(f1::Piecewise_Function,f2::Piecewise_Function)
     functions_  = c_f1.functions_ + c_f2.functions_
     return Piecewise_Function(functions_, thresholds_)
 end
+function +(f1::Piecewise_Function,f2::Sum_Of_Piecewise_Functions)
+    return Sum_Of_Piecewise_Functions(vcat(f2.functions_, f1), f2.global_funcs_)
+end
+function +(f1::Sum_Of_Piecewise_Functions,f2::Piecewise_Function)
+    return +(f2,f1)
+end
+
 function -(f1::Piecewise_Function,f2::Piecewise_Function)
     return +(f1, -1.0 * f2)
+end
+function -(f1::Piecewise_Function,f2::Sum_Of_Piecewise_Functions)
+    return +(f1,-1*f2)
+end
+function -(f1::Sum_Of_Piecewise_Functions,f2::Piecewise_Function)
+    return +(f1,-1*f2)
 end
 function *(f1::Piecewise_Function,f2::Piecewise_Function)
     c_f1, c_f2 = create_common_pieces(f1,f2)
@@ -339,6 +433,59 @@ function *(f1::Piecewise_Function,f2::Piecewise_Function)
     functions_ = c_f1.functions_ .* c_f2.functions_
     return Piecewise_Function(functions_, thresholds_)
 end
+function *(f1::Piecewise_Function,f2::Sum_Of_Piecewise_Functions)
+    return f1 * convert(Piecewise_Function, f2)
+end
+function *(f1::Sum_Of_Piecewise_Functions,f2::Piecewise_Function)
+    return *(f2,f1)
+end
+
+# Sum of Piecewise Functions
+function +(f::Sum_Of_Piecewise_Functions,number::Float64)
+    return Sum_Of_Piecewise_Functions(f.functions_, f.global_funcs_ + number )
+end
+function -(f::Sum_Of_Piecewise_Functions,number::Float64)
+    return +(f,-1.0*number)
+end
+function *(f::Sum_Of_Piecewise_Functions,number::Float64)
+    return Sum_Of_Piecewise_Functions(number .* f.functions_, number * f.global_funcs_)
+end
+function /(f::Sum_Of_Piecewise_Functions,number::Float64)
+    return *(f, 1.0/number)
+end
+function +(f::Sum_Of_Piecewise_Functions,number::Int)
+    number_as_float = convert(Float64, number)
+    return +(f,number_as_float)
+end
+function -(f::Sum_Of_Piecewise_Functions,number::Int)
+    number_as_float = convert(Float64, number)
+    return -(f,number_as_float)
+end
+function *(f::Sum_Of_Piecewise_Functions,number::Int)
+    number_as_float = convert(Float64, number)
+    return *(f,number_as_float)
+end
+function /(f::Sum_Of_Piecewise_Functions,number::Int)
+    number_as_float = convert(Float64, number)
+    return /(f,number_as_float)
+end
+
+
+
+function +(f1::Sum_Of_Piecewise_Functions,f2::Sum_Of_Piecewise_Functions)
+    return Sum_Of_Piecewise_Functions(vcat(f1.functions_, f2.functions_), f1.global_funcs_ + f2.global_funcs_)
+end
+
+function -(f1::Sum_Of_Piecewise_Functions,f2::Sum_Of_Piecewise_Functions)
+    return +(f1,-1*f2)
+end
+function *(f1::Sum_Of_Piecewise_Functions,f2::Sum_Of_Piecewise_Functions)
+    return convert(Piecewise_Function,f1) * convert(Piecewise_Function, f2)
+end
+
+
+
+
 
 function +(f1::Missing,f2::MultivariateFunction)
     return f1

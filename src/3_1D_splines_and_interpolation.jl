@@ -1,3 +1,11 @@
+"""
+    create_quadratic_spline(x::Array{Date,1},y::Array{Float64,1} ; gradients::Array{Any,1} = [], extrapolation::String = "Curve", dim_name::Symbol = default_symbol)
+    create_quadratic_spline(x::Array{Int,1},y::Array{Float64,1} ; gradients::Array{Any,1} = [], extrapolation::String = "Curve", dim_name::Symbol = default_symbol)
+    create_quadratic_spline(x::Array{Float64,1},y::Array{Float64,1} ; gradients::Array{Any,1} = [], extrapolation::String = "Curve", dim_name::Symbol = default_symbol)
+    create_quadratic_spline(schum::Schumaker; dim_name::Symbol = default_symbol)
+
+Create a quadratic spline. The spline is a Schumaker shape-preserving spline which is taken from the SchumakerSpline.jl package.
+"""
 function create_quadratic_spline(x::Array{Date,1},y::Array{Float64,1} ; gradients::Array{Any,1} = [], extrapolation::String = "Curve", dim_name::Symbol = default_symbol)
     x_as_Float64s = years_from_global_base.(x)
     return create_quadratic_spline(x_as_Float64s, y; gradients = gradients, extrapolation = extrapolation, dim_name = dim_name)
@@ -29,6 +37,12 @@ function create_quadratic_spline(schum::Schumaker; dim_name::Symbol = default_sy
     return Piecewise_Function(funcs_, thresholds)
 end
 
+"""
+    create_constant_interpolation_to_right(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+    create_constant_interpolation_to_right(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+
+Create a piecewise constant one-dimensional function which carries values from the left to the right.
+"""
 function create_constant_interpolation_to_right(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     x_Float = years_from_global_base.(x)
     return create_constant_interpolation_to_right(x_Float,y; dim_name = dim_name)
@@ -42,6 +56,12 @@ function create_constant_interpolation_to_right(x::Array{Float64,1},y::Array{Flo
     return Piecewise_Function(funcs_, thresholds_)
 end
 
+"""
+    create_constant_interpolation_to_left(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+    create_constant_interpolation_to_left(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+
+Create a piecewise constant one-dimensional function which carries values from the right to the left.
+"""
 function create_constant_interpolation_to_left(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     x_Float = years_from_global_base.(x)
     return create_constant_interpolation_to_left(x_Float , y ; dim_name = dim_name)
@@ -54,6 +74,12 @@ function create_constant_interpolation_to_left(x::Array{Float64,1},y::Array{Floa
     return Piecewise_Function(funcs_, thresholds_)
 end
 
+"""
+    create_linear_interpolation(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+    create_linear_interpolation(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+
+Create a piecewise linear one-dimensional function which interpolates linearly between datapoints.
+"""
 function create_linear_interpolation(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     x_Float = years_from_global_base.(x)
     return create_linear_interpolation(x_Float,y; dim_name = dim_name)

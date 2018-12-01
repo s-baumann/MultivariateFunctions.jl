@@ -1,10 +1,9 @@
-using GLM
 using MultivariateFunctions
 using DataFrames
+using Dates
 using Random
-using Distributions
+using GLM
 
-##### Univariate Tests
 tol = 10*eps()
 
 Random.seed!(1)
@@ -15,30 +14,30 @@ y = X .+ rand(Normal(),obs) .+ 7
 # Basic use case with 2 degrees
 lm1 = fit(LinearModel, hcat(ones(obs), X, X .^ 2), y)
 glm_preds = predict(lm1, hcat(ones(obs), X, X .^ 2))
-model_1, reg_1 = MultivariateFunctions.create_ols_approximation(y, X, 2; intercept = true, base_x = 0.0)
-package_predictions = MultivariateFunctions.evaluate.(model_1, X)
+package_approximation, reg1 = create_ols_approximation(y, X, 2; intercept = true, base_x = 0.0)
+package_predictions = evaluate.(package_approximation, X)
 sum(abs.(glm_preds .- package_predictions)) < 1e-10
 
 # Degree of 1 with no intercept
 lm1 = fit(LinearModel, hcat(X), y)
 glm_preds = predict(lm1, hcat(X))
-package_approximation = MultivariateFunctions.create_ols_approximation(y, X, 0.0, 1, false)
-package_predictions = MultivariateFunctions.evaluate.(package_approximation, X)
+package_approximation, reg2 = create_ols_approximation(y, X, 1; intercept = false)
+package_predictions = evaluate.(package_approximation, X)
 sum(abs.(glm_preds .- package_predictions)) < 1e-10
 
 # Degree of 1 with no intercept
 lm1 = fit(LinearModel, hcat(ones(obs)), y)
 glm_preds = predict(lm1, hcat(ones(obs)))
-package_approximation = MultivariateFunctions.create_ols_approximation(y, X, 0.0, 0, true)
-package_predictions = MultivariateFunctions.evaluate.(package_approximation, X)
+package_approximation, reg3 = create_ols_approximation(y, X, 0; intercept = true)
+package_predictions = evaluate.(package_approximation, X)
 sum(abs.(glm_preds .- package_predictions)) < 1e-10
 
 # With applying a base
 Xmin = X .- 5
 lm1 = fit(LinearModel, hcat(ones(obs), Xmin, Xmin .^ 2), y)
 glm_preds = predict(lm1, hcat(ones(obs), Xmin, Xmin .^ 2))
-package_approximation = MultivariateFunctions.create_ols_approximation(y, X, 5.0, 2, true)
-package_predictions = MultivariateFunctions.evaluate.(package_approximation, X)
+package_approximation, reg4 = create_ols_approximation(y, X, 2; intercept = true, base_x = 5.0)
+package_predictions = evaluate.(package_approximation, X)
 sum(abs.(glm_preds .- package_predictions)) < 1e-10
 
 # With x as dates and a base.
@@ -51,18 +50,9 @@ end
 XConverted = years_between.(X, baseDate)
 lm1 = fit(LinearModel, hcat(ones(obs), XConverted, XConverted .^ 2), y)
 glm_preds = predict(lm1, hcat(ones(obs), XConverted, XConverted .^ 2))
-package_approximation = MultivariateFunctions.create_ols_approximation(y, X, baseDate, 2, true)
-package_predictions = MultivariateFunctions.evaluate.(package_approximation, X)
+package_approximation, reg5 = create_ols_approximation(y, X, 2; intercept = true, base_date = baseDate)
+package_predictions = evaluate.(package_approximation, X)
 sum(abs.(glm_preds .- package_predictions)) < 1e-10
-
-
-
-
-
-
-
-
-
 
 
 
@@ -113,7 +103,7 @@ intercept = true
 univariate_dim_name = :default
 mod_3, reg_3 = create_saturated_ols_approximation(dd, y, x_variables, degree)
 dd[:predicted_y_3] = evaluate(mod_3, dd)
-sum(abs.(dd[:predicted_y_3] - reg_3.rr.mu)) < 1e-12
+sum(abs.(dd[:predicted_y_3] - reg_3.rr.mu)) < 1e-11
 
 # Now the second model should have higher RSS than the first because it has fewer variables and terms. We can test this:
 sum((dd[:predicted_y_2] .- dd[:y]).^2) > sum((dd[:predicted_y] .- dd[:y]).^2)

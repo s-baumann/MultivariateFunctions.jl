@@ -6,8 +6,8 @@ const global_base_date = Date(2000,1,1)
 StartDate = Date(2018, 7, 21)
 
 
-x = Array{Date}(undef, 1000)
-for i in 1:1000
+x = Array{Date}(undef, 100)
+for i in 1:100
     x[i] = StartDate +Dates.Day(2* (i-1))
 end
 
@@ -40,14 +40,4 @@ rhs = StartDate + Dates.Month(16)
 numerical_integral  = integral(spline, lhs,rhs)
 
 analytical = analytic_integral(lhs,rhs)
-abs(  analytical - numerical_integral  ) < 0.0001
-
-
-
-#using Plots
-#xx = Array{Date}(undef, 1000)
-#for i in 1:1000
-#    xx[i] = StartDate +Dates.Day(2* (i-1))
-#end
-#yy = evaluate.(Ref(spline), xx )
-#plot(xx,yy)
+abs(  analytical - numerical_integral  ) < 0.001

@@ -2,7 +2,14 @@ import Base.+, Base.-, Base./, Base.*, Base.^
 import Base.sort, Base.convert, Base.zero
 using Dates
 abstract type MultivariateFunction end
+"""
+    PE_Unit(b_::Float64, base_::Float64, d_::Int)
+    PE_Unit(b_::Float64, base_::Date, d_::Int)
 
+This creates a PE_Unit which has a functional form of exp(b_(x-base_)) (x-base_)^d.
+They cannot be used in any productive way by themselves but are needed to construct a PE_Function.
+An empty PE_Unit (which might be used to create a constant PE_Function) can be created by PE_Unit().
+"""
 struct PE_Unit
     b_::Float64
     base_::Float64
@@ -27,6 +34,7 @@ struct PE_Unit
     end
 end
 
+
 function evaluate(unit::PE_Unit, x::Float64)
     diff = x - unit.base_
     return exp(unit.b_ * diff) * (diff)^unit.d_
@@ -36,10 +44,17 @@ const default_symbol = :default
 
 """
     PE_Function(multiplier_::Float64, functions_::Dict{Symbol,PE_Unit})
+
+This is the main constructor for a PE Function. The functional form of the function is the multiplier multiplied by all PE_Units.
+
+For instance the PE_Function created by PE_Function(6.0, Dict([:x, :y] .=> [PE_Unit(1.0,1.0,1), PE_Unit(0.0,2.0,4)]))
+has a functional form of 6 (x-1) exp(x-1) (y-2)^4
+
+The following convenience functions create a PE_Function where there is only one variable (with a symbol :default).
     PE_Function(multiplier_::Float64,b_::Float64, base_::Float64, d_::Int)
     PE_Function(multiplier_::Float64,b_::Float64, base_::Date, d_::Int)
-
-Creates a PE_Function from a multiplier and a set of PE_Functions.
+The following convenience function creates a PE_Function where there are no variables and hence it is constant:
+    PE_Function(num::Float64 = 0.0)
 """
 struct PE_Function <: MultivariateFunction
     multiplier_::Float64
@@ -52,6 +67,9 @@ struct PE_Function <: MultivariateFunction
             if (units_[k].b_ ≂ 0.0) & (units_[k].d_ == 0)
                 pop!(units_, k)
             end
+        end
+        if multiplier_ ≂ 0.0
+            return PE_Function(0.0)
         end
         return new(multiplier_, units_)
     end
@@ -84,6 +102,10 @@ function get_bases(f::PE_Function)
     return dic
 end
 
+"""
+    rebadge(f::PE_Function, mapping::Dict{Symbol,Symbol})
+    can be used to change the names of the variables in a MultivariateFunction.
+"""
 function rebadge(f::PE_Function, mapping::Dict{Symbol,Symbol})
     original_units = deepcopy(f.units_)
     units_ = Dict{Symbol,PE_Unit}()
@@ -110,6 +132,14 @@ function rebadge(f::MultivariateFunction, new_symbol::Symbol)
     end
 end
 
+"""
+    evaluate(f::MultivariateFunction, coordinates::Dict{Symbol,Float64})
+    evaluates a function at coordinates.
+
+    For univariate functions with a variable name of :default (such as those created by PE_Function's convenience functions)
+    evaluation can take place with no dictionary:
+    evaluate(f::MultivariateFunction, coordinate::Float64)
+"""
 function evaluate(f::PE_Function, coordinates::Dict{Symbol,Float64})
     val = f.multiplier_
     for k in intersect(keys(f.units_), keys(coordinates))
@@ -118,7 +148,10 @@ function evaluate(f::PE_Function, coordinates::Dict{Symbol,Float64})
     return val
 end
 
-
+"""
+    underlying_dimensions(f::MultivariateFunction)
+    Returns a set containing all of the variables upon which f depends.
+"""
 function underlying_dimensions(a::Missing)
     return Set{Symbol}()
 end
@@ -138,7 +171,10 @@ end
 """
     Sum_Of_Functions(functions)
 
-Creates a Sum_Of_Functions from an array of PE_Functions.
+Creates a Sum_Of_Functions from an array of PE_Functions and/or Sum_Of_Functions.
+The constructors for this type go through each input Sum_Of_Functions and takes out the contained PE_Functions (so unecessary nesting doesnt occur where a Sum_Of_Functions could contain another Sum_Of_Functions).
+The constructors also aggregate PE_Functions where possible. For intance if two PE_Functions have the same PE_Units and differ in their multiplier these multipliers can be added.
+The constructors also remove zero multiplier PE_Functions.
 """
 struct Sum_Of_Functions <: MultivariateFunction
     functions_::Array{PE_Function,1}
@@ -250,23 +286,27 @@ end
 function convert(::Type{Union{Missing,Sum_Of_Functions}}, f::Missing)
     return f
 end
-#function convert(::Type{Array{Union{Missing,Sum_Of_Functions}}}, arr::Array{Any})
-#    println("poo")
-#    new_arr = Array{Union{Missing,Sum_Of_Functions},1}(undef, length(arr))
-#    for i in 1:length(arr)
-#        if arr[i] == Missing
-#            new_arr[i] = Missing()
-#        else
-#            new_arr[i] = convert(Union{Missing,Sum_Of_Functions}, arr[i])
-#        end
-#    end
-#    return new_arr
-#end
 
 """
-    Piecewise_Function(functions_, Thresholds_)
+    Piecewise_Function(functions_::Array{Union{Missing,Sum_Of_Functions}}, thresholds_::OrderedDict{Symbol,Array{Float64,1}})
 
-Creates a Piecewise_Function from an array of Sum_Of_Functions and an ordered dict of thresholds.
+Creates a Piecewise_Function from a multidimensional array of Sum_Of_Functions and an ordered dict of thresholds. The xth dimension
+in the thresholds dict corresponds to the xth dimension of the array of functions. A function can be lookuped up considering the thresholds and
+then selecting from the array. For instance if the first dimension is denoted :y and it's thresholds are [-4.0,0.0,3.4] and we query at a point with
+a :y coordinate of 2.7 then the function we look up will be from the file functions_[2, ...] where ... represents the coordinates the the other dimensions.
+This is because 2.7 is greater than the second element of [-4.0,0.0,3.4] but less than the third.
+If this piecewise function were to be queried at a :y coordinate of -5.0 then a missing value will be returned. To specify piecewise functions on an
+unlimited domain the first element of the threshold can be set as -Inf. To set a limited domain on the upper end then add a Missing value to the functions_
+array. Any other (ie interior) point can also be made undefined by putting a Missing() type into the functions_ array.
+
+Note that Piecewise_Function works by assigning a Sum_Of_Functions to every region within the space defined by the thresholds_ dict. It is only possible to
+specify a region as a hypercube however. More complex regions are not possible.
+
+Note too that piecewise functions will scale poorly in high dimensions. If there are 10 dimensions and each has 4 elements in its threshold dict then
+the array for the piecewise function will have more than one million entries. In cases where there are no interactions between dimensions it is more
+efficient to use a Sum_Of_Piecewise_Functions object (which is basically an array of Piecewise Functions). For instance consider the following function:
+f(x,y,z) = max(x,5) + max(y,3) + max(z,3)
+We could code this as a piecewise function or as the sum of three piecewise functions. The three piecewise function implementation will contain fewer PE_Functions.
 """
 struct Piecewise_Function <: MultivariateFunction
     # Here we use ints to represent the function i n each subcube of the space. This saves on size and computation in
@@ -360,7 +400,16 @@ end
 Base.broadcastable(e::Piecewise_Function) = Ref(e)
 
 function rebadge(f::Piecewise_Function, mapping::Dict{Symbol,Symbol})
-    error("Not yet implemented")
+    funcs = rebadge.(f.functions_, Ref(mapping))
+    new_thresholds = OrderedDict{Symbol,Array{Float64,1}}()
+    for m in keys(thresholds)
+        if m in keys(mapping)
+            new_thresholds[mapping[m]] = thresholds[m]
+        else
+            new_thresholds[m] = thresholds[m]
+        end
+    end
+    return Piecewise_Function(funcs, new_thresholds)
 end
 
 function get_function_cube(thresholds_::OrderedDict{Symbol,Array{Float64,1}}, ind )
@@ -472,10 +521,73 @@ function create_common_pieces(f1::Piecewise_Function,f2::Piecewise_Function)
     return Piecewise_Function(functions1_, thresholds_) , Piecewise_Function(functions2_, thresholds_)
 end
 
+# Sum of Piecewise functions
+"""
+    Sum_Of_Piecewise_Functions(functions_::Array{Piecewise_Function,1}, global_funcs_::Sum_Of_Functions)
+At the cost of being less flexible a Sum_Of_Piecewise_Functions is more efficient than a PiecewiseFunction.
+Use this if trying to represent a piecewise function that can be decomposed into a sum of lower dimensional
+piecewise functions.
+"""
+struct Sum_Of_Piecewise_Functions <: MultivariateFunction
+    functions_::Array{Piecewise_Function,1}
+    global_funcs_::Sum_Of_Functions
+    function Sum_Of_Piecewise_Functions(functions_::Array{Piecewise_Function,1})
+        new(functions_, Sum_Of_Functions([]))
+    end
+    function Sum_Of_Piecewise_Functions(functions_::Array{Piecewise_Function,1}, sum_func_::Sum_Of_Functions)
+        new(functions_, sum_func_)
+    end
+    function Sum_Of_Piecewise_Functions(functions_::Array{Sum_Of_Functions,1})
+        return Sum_Of_Functions(functions_)
+    end
+    function Sum_Of_Piecewise_Functions(functions_::Sum_Of_Functions)
+        return functions_
+    end
+    function Sum_Of_Piecewise_Functions(functions_::Array)
+        pe_function_funcs                        = functions_[typeof.(functions_) .== MultivariateFunctions.PE_Function]
+        Sum_Of_Functions_funcs                   = functions_[typeof.(functions_) .== MultivariateFunctions.Sum_Of_Functions]
+        piecewise_funcs                          = functions_[typeof.(functions_) .== MultivariateFunctions.Piecewise_Function]
+        sum_of_piecewise_functions_funcs         = functions_[typeof.(functions_) .== MultivariateFunctions.Sum_Of_Piecewise_Functions]
+        piece_length = length(piecewise_funcs)
+        funcs_length = length(functions_)
+        if length(pe_function_funcs) + length(Sum_Of_Functions_funcs) + piece_length + length(sum_of_piecewise_functions_funcs) < length(functions_)
+            error("A Sum_Of_Piecewise_Functions can only be created by an array of multivariate functions")
+        elseif (funcs_length == 0) # So we have no functions input.
+            return Sum_Of_Functions([])
+        elseif (piece_length == 0) # so all are globals.
+            globals = vcat(pe_function_funcs, Sum_Of_Functions_funcs, map(x -> x.global_funcs_ , sum_of_piecewise_functions_funcs)...)
+            return Sum_Of_Functions(globals)
+        elseif (piece_length == funcs_length) # So all are piecewise
+            return new(piecewise_funcs, Sum_Of_Functions([]))
+        else # We have both function types
+            globals = vcat(pe_function_funcs, Sum_Of_Functions_funcs, map(x -> x.global_funcs_ , sum_of_piecewise_functions_funcs)...)
+            pieces = vcat(piecewise_funcs, map(x -> x.functions_ , sum_of_piecewise_functions_funcs)...)
+            return new(pieces, globals)
+        end
+    end
+end
 
+function underlying_dimensions(f::Sum_Of_Piecewise_Functions)
+    return union(union(underlying_dimensions.(f.functions_)...), union(underlying_dimensions(f.global_funcs_)) )
+end
+function evaluate(f::Sum_Of_Piecewise_Functions, coordinates::Dict{Symbol,Float64})
+    return sum(evaluate.(f.functions_, Ref(coordinates))) + evaluate(f.global_funcs_, coordinates)
+end
 
-
-
+function convert(::Type{Piecewise_Function}, f::Sum_Of_Piecewise_Functions)
+    len = length(f.functions_)
+    if len < 1
+        error("It is not possible to convert a zero length Sum_Of_Piecewise_Functions into a Piecewise_Function.")
+    elseif len == 1
+        return f.functions_[1] + f.global_funcs_
+    else
+        pw =  f.functions_[1] + f.functions_[2]
+        for l in 3:len
+            pw = pw + f.functions_[l]
+        end
+        return pw + f.global_funcs_
+    end
+end
 
 
 

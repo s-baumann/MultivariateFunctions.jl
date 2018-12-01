@@ -1,4 +1,4 @@
-The UnivariateFunctions.jl package is licensed under the MIT "Expat" License:
+The MultivariateFunctions.jl package is licensed under the MIT "Expat" License:
 
 > Copyright (c) 2018: Stuart Baumann.
 >

@@ -1,28 +1,4 @@
-"""
-function get_cholesky_coefficients(chebyshev::Sum_Of_Functions, y::Array{Float64,1}, unnormalised_nodes::Array{Float64,1})
-    chebyshev_on_nodes = evaluate.(Ref(chebyshev), unnormalised_nodes)
-    a = sum(y .* chebyshev_on_nodes) / sum(chebyshev_on_nodes .^ 2)
-    return a
-end
 
-function create_chebyshev_approximation(func::Function, nodes::Int, degree::Int, left::Float64, right::Float64)
-    # This is all after Algorithm 6.2 from Judd (1998) Numerical Methods in Economics.
-    if nodes <= degree
-        error("Need to have more nodes than degree to use a chebyshev approximation")
-    end
-    k = 1:nodes
-    unnormalised_nodes = -cos.( (((2 .* k) .- 1) ./ (2 * nodes)) .* pi    )
-    normalised_nodes = ((unnormalised_nodes .+ 1) .* ((right-left)/2)) .+ left
-    y = func.(normalised_nodes)
-    chebyshevs = get_chevyshevs_up_to(degree, true)
-    a = get_cholesky_coefficients.(chebyshevs, Ref(y), Ref(unnormalised_nodes))
-    transformed_chebyshevs = convert_to_linearly_rescale_inputs.(chebyshevs, (right-left)/2, +(right+left)/2)
-    # Note that these alpha and beta parameters in the convert_to_linearly_rescale_inputs function differ from those in Judd because those did not work in this context.
-    all_terms = a .* transformed_chebyshevs
-    final_func = Sum_Of_Functions(all_terms)
-    return final_func
-end
-"""
 
 function evaluate_function_at_nodes(func::Function, unnormalised_nodes::Array{Float64,1}, limits::OrderedDict{Symbol,Tuple{Float64,Float64}}, function_takes_Dict::Bool)
     nodes = length(unnormalised_nodes)
@@ -120,10 +96,14 @@ function convert_chebyshevs(chebyshevs::Array{Sum_Of_Functions,1}, limits::Order
 end
 
 """
+    create_chebyshev_approximation(f::Function, nodes::Int, degree::Int, limits::OrderedDict{Symbol,Tuple{Float64,Float64}}, function_takes_Dict::Bool = false)
+Creates a Sum_Of_Functions that approximates a function, f, with a set of chebyshevs of a particular degree. The nodes input specifies at how many locations the
+function is to be evaluated for approximation purposes in each dimension. The limits OrderedDict specifies the domain of where the function is to be approximated.
 
-This is the thing asdfjsfdkljasvnwirt skhlj#flksdtshnjdcsj,mm,kjm,This isa  senten
+If function_takes_Dict is true then the function will be evaluated by inputting a  Dict{Symbol,Float64}. Otherwise the function will be evaluated with f(values(limits)...)
+Note that the order of the OrderedDict specifies the order of inputs to the function in this case.
 """
-function create_chebyshev_approximation(func::Function, nodes::Int, degree::Int, limits::OrderedDict{Symbol,Tuple{Float64,Float64}}, function_takes_Dict::Bool = false)
+function create_chebyshev_approximation(f::Function, nodes::Int, degree::Int, limits::OrderedDict{Symbol,Tuple{Float64,Float64}}, function_takes_Dict::Bool = false)
     # This is all after Algorithm 6.2 from Judd (1998) Numerical Methods in Economics.
     if nodes <= degree
         error("Need to have more nodes than degree to use a chebyshev approximation")
@@ -137,7 +117,7 @@ function create_chebyshev_approximation(func::Function, nodes::Int, degree::Int,
         cheb_evaluated_at_each_node = evaluate.(Ref(chebyshevs[i]),unnormalised_nodes)
         evaluated_chebyshevs_on_sum_squared[:,i] = cheb_evaluated_at_each_node ./ sum( cheb_evaluated_at_each_node .^ 2 )
     end
-    y = evaluate_function_at_nodes(func, unnormalised_nodes, limits, function_takes_Dict)
+    y = evaluate_function_at_nodes(f, unnormalised_nodes, limits, function_takes_Dict)
     a = get_cholesky_coefficients(evaluated_chebyshevs_on_sum_squared, y)
     transformed_chebyshevs = convert_chebyshevs(chebyshevs, limits)
 

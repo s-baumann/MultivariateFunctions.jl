@@ -33,7 +33,10 @@ function get_second_kind_Chebyshevs(num::Int, dim_name::Symbol)
     end
 end
 
-
+"""
+    get_chevyshevs_up_to(num::Int, first_kind::Bool = true; dim_name::Symbol = default_symbol)
+    Output all chebyshev polynomials up to degree num.
+"""
 function get_chevyshevs_up_to(num::Int, first_kind::Bool = true; dim_name::Symbol = default_symbol)
     if first_kind
         return get_first_kind_Chebyshevs(num,dim_name)

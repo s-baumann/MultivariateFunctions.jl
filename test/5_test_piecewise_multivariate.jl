@@ -61,9 +61,12 @@ coordinates = Dict(Symbol.(["w","x", "y", "z"]) .=> [1.4, 0.5, 2.0, 3.0])
 function test_result(func, eval_to, len = 1)
     val_test = abs(evaluate(func, coordinates) - eval_to) < 1e-05
     if (!val_test)
-        print("Failed Val Test")
+        println("Failed Val Test")
     end
     len_test = length(func.functions_) == len
+    if (!len_test)
+        println(string("Failed length Test, Length is ", length(func.functions_)))
+    end
     return all([val_test,len_test])
 end
 ismissing(evaluate(pw_func, Dict(Symbol.(["w","x", "y", "z"]) .=> [-Inf, -Inf, -Inf, -Inf])))
@@ -118,3 +121,24 @@ pw_func2 = Piecewise_Function(func_array, OrderedDict([:x, :y, :w] .=> [[0.2, 0.
 test_result(pw_func + pw_func2, evaluate( (mfun1 + mfun5) + (mfun5 + mfun5), coordinates), 3*4*2*2)
 test_result(pw_func - pw_func2, evaluate( (mfun1 + mfun5) - (mfun5 + mfun5), coordinates), 3*4*2*2)
 test_result(pw_func * pw_func2, evaluate( (mfun1 + mfun5) * (mfun5 + mfun5), coordinates), 3*4*2*2)
+
+
+## Testing of Sum_Of_Piecewise_Functions
+spwf = Sum_Of_Piecewise_Functions([pw_func, pw_func2])
+abs(evaluate(spwf, coordinates) - evaluate(pw_func, coordinates) - evaluate(pw_func2, coordinates) ) < tol
+underlying_dimensions(spwf) == union(underlying_dimensions(pw_func), underlying_dimensions(pw_func2))
+converted = convert(Piecewise_Function, spwf)
+added = (pw_func + pw_func2)
+converted.functions_[2,2,2,1].functions_[1] ≂ added.functions_[2,2,2,1].functions_[1]
+
+test_result( (spwf + 1) - 1, evaluate( spwf, coordinates), 2)
+test_result( 1 + (1 - spwf ), 2 - evaluate( spwf, coordinates), 2)
+test_result( (spwf + 1.0) - 1.0, evaluate( spwf, coordinates), 2)
+test_result( 1.0 + (1.0 - spwf ), 2 - evaluate( spwf, coordinates), 2)
+test_result( (3 *spwf * 2) / 4, evaluate( spwf, coordinates) * 1.5, 2)
+test_result( (3.0 *spwf * 2.0) / 4.0, evaluate( spwf, coordinates) * 1.5, 2)
+test_result( (spwf^2), evaluate( spwf, coordinates)^2, 48)
+deriv_spec = Dict{Symbol,Int}(:x => 1)
+abs(evaluate(derivative(spwf, deriv_spec), coordinates) -  evaluate(derivative(pw_func,deriv_spec), coordinates) - evaluate(derivative(pw_func2, deriv_spec), coordinates)) < 1e-09
+integration_limits = Dict{Symbol,Tuple{Float64,Float64}}([:x, :y, :w, :z] .=> [(0.25,0.75),(-4.0,-1.0),(0.0,8.0), (0.5, 2.4)])
+evaluate(integral(spwf, integration_limits) -  integral(pw_func,integration_limits) - integral(pw_func2, integration_limits), coordinates)     < 1e-09
