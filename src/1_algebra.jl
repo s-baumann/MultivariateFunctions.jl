@@ -201,27 +201,33 @@ end
     Any two MultivariateFunctions can be multiplied to form a MultivariateFunction reflecting the product.
 """
 function *(f1::PE_Function,f2::PE_Function)
-    f1_bases = get_bases(f1)
-    f2_bases = get_bases(f2)
-    min_bases = merge(min, f1_bases, f2_bases)
-    f1_rebase = change_base(f1, min_bases)
-    f2_rebase = change_base(f2, min_bases)
-    L1 = length(f1_rebase)
-    L2 = length(f2_rebase)
-    if (L1 == 1) & (L2 == 1)
-        f1_ = f1_rebase[1]
-        f2_ = f2_rebase[1]
-        new_mult = f1_.multiplier_ * f2_.multiplier_
-        return PE_Function(new_mult, merge(*, f1_.units_, f2_.units_ ))
+    if (length(f1.units_) == 0)
+        return f1.multiplier_ * f2
+    elseif (length(f2.units_) == 0)
+        return f2.multiplier_ * f1
     else
-        PEs = Array{PE_Function,1}()
-        for f in f1_rebase
-            for g in f2_rebase
-                append!(PEs, [f * g])
+        f1_bases = get_bases(f1)
+        f2_bases = get_bases(f2)
+        min_bases = merge(min, f1_bases, f2_bases)
+        f1_rebase = change_base(f1, min_bases)
+        f2_rebase = change_base(f2, min_bases)
+        L1 = length(f1_rebase)
+        L2 = length(f2_rebase)
+        if (L1 == 1) & (L2 == 1)
+            f1_ = f1_rebase[1]
+            f2_ = f2_rebase[1]
+            new_mult = f1_.multiplier_ * f2_.multiplier_
+            return PE_Function(new_mult, merge(*, f1_.units_, f2_.units_ ))
+        else
+            PEs = Array{PE_Function,1}()
+            for f in f1_rebase
+                for g in f2_rebase
+                    append!(PEs, [f * g])
+                end
             end
         end
+        return Sum_Of_Functions(PEs)
     end
-    return Sum_Of_Functions(PEs)
 end
 
 function *(f1::PE_Function, f2::Sum_Of_Functions)

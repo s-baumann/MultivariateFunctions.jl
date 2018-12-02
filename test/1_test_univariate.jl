@@ -189,3 +189,9 @@ abs(evaluate(test_func, inp) - evaluate(converted_test_func, rescaled_input)) < 
 sumFunc = test_func + pe_exp_quad + pe_exp
 converted_sumFunc = convert_to_linearly_rescale_inputs(sumFunc, alpha, beta)
 abs(evaluate(sumFunc, inp) - evaluate(converted_sumFunc, rescaled_input)) < 1e-10
+
+# Multiplications with no units.
+n1 = PE_Function(5.0)
+n2 = PE_Function(12.0)
+abs((n1 * n2).multiplier_ - 60.0) < tol
+abs((n1 * pe_lin).multiplier_ - 10.0) < tol

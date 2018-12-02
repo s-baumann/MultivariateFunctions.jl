@@ -436,7 +436,10 @@ function integral(f::Sum_Of_Piecewise_Functions, limits::Dict{Symbol,Tuple{Float
 end
 
 function integral(f::MultivariateFunction, left_limit::Float64, right_limit::Float64)
-    if underlying_dimensions(f) == Set([default_symbol])
+    underlyingDims = underlying_dimensions(f)
+    if length(underlyingDims) == 0
+        return f.multiplier_ * (right_limit-left_limit)
+    elseif underlyingDims == Set([default_symbol])
         limits_ = Dict{Symbol,Tuple{Float64,Float64}}(default_symbol => Tuple{Float64,Float64}((left_limit,right_limit)))
         return integral(f, limits_)
     else
