@@ -8,7 +8,7 @@ There are a few ways in which it can be used.
 * As in the [StochasticIntegrals.jl](https://github.com/s-baumann/StochasticIntegrals.jl) package this package can be used to define
     functions that will be the integrands in stochastic integrals. This has the benefit
     that the means, variances & covariances implied by these stochastic integrals can be found analytically.
-* All basic algebra and calculus on a multivariateFunction can be done analytically. This implicitly means that Gauss-Chebyshev integration is implemented (you just approximate with chebyshev polynomials and then analytically integrate).
+* All basic algebra and calculus on a multivariateFunction can be done analytically.
 * The Newton's method is implemented so that roots and optima can be found using analytical Jacobians and Hessians.
 
 ## Structs
