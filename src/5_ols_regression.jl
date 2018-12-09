@@ -31,18 +31,18 @@ function create_saturated_ols_approximation(dd::DataFrame, y::Symbol, x_variable
 end
 
 """
-    create_ols_approximation(dd::DataFrame, y::Symbol, model::MultivariateFunction)
-    create_ols_approximation(dd::DataFrame, y::Symbol, model::Sum_Of_Functions)
-    create_ols_approximation(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions)
+    create_ols_approximation(dd::DataFrame, y::Symbol, model::MultivariateFunction; allowrankdeficient = true)
+    create_ols_approximation(dd::DataFrame, y::Symbol, model::Sum_Of_Functions; allowrankdeficient = true)
+    create_ols_approximation(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions; allowrankdeficient = true)
 This creates MultivariationFunction from an OLS regression predicting some variable. You input a dataframe and specify what column in that dataframe
 is to be predicted by inputting a symbol y. You also input the regression model. This is input as a Array{MultivariateFunction,1}.
 Each function that is input will be multiplied by the ols coefficient and will return a new function with these coefficients
 incorporated.
 """
-function create_ols_approximation(dd::DataFrame, y::Symbol, model::Array)
+function create_ols_approximation(dd::DataFrame, y::Symbol, model::Array; allowrankdeficient = true)
     X = hcat(evaluate.(model, Ref(dd))...)
     y = dd[y]
-    reg = lm(X,y)
+    reg = fit(LinearModel, X,y, allowrankdeficient)
     coefficients = reg.pp.beta0
     updated_model = Sum_Of_Piecewise_Functions(model .* coefficients)
     return updated_model, reg
