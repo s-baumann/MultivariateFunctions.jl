@@ -485,7 +485,13 @@ function evaluate(f::Piecewise_Function, coordinate::Float64)
 end
 
 function underlying_dimensions(f::Piecewise_Function)
-    return union([union(underlying_dimensions.(f.functions_)...),  keys(f.thresholds_)]...)
+    underlying = union(underlying_dimensions.(f.functions_)...)
+    for k in keys(f.thresholds_)
+        if f.thresholds_[k] != [-Inf]
+            push!(underlying, k)
+        end
+    end
+    return underlying
 end
 
 
@@ -698,6 +704,29 @@ function evaluate(f::PE_Function, coordinates::DataFrame)
 end
 
 function evaluate(f::Sum_Of_Functions, coordinates::DataFrame)
+    if length(f.functions_) == 0
+        return repeat([0.0], size(coordinates)[1])
+    end
     results = evaluate.(f.functions_, Ref(coordinates))
     return sum(results)
+end
+function evaluate(f::Piecewise_Function, coordinates::DataFrame)
+    len = size(coordinates)[1]
+    results = Array{Union{Float64,MultivariateFunction},1}(undef, len)
+    underlying = underlying_dimensions(f)
+    for r in 1:len
+        coordinate = Dict{Symbol,Float64}()
+        for dimen in names(coordinates)
+            coordinate[dimen] = coordinates[r,dimen]
+        end
+        results[r] = evaluate(f ,coordinate)
+    end
+    return results
+end
+function evaluate(f::Sum_Of_Piecewise_Functions, coordinates::DataFrame)
+    result = evaluate(f.global_funcs_, coordinates)
+    for i in 1:length(f.functions_)
+        result = result + evaluate(f.functions_[i], coordinates)
+    end
+    return result
 end
