@@ -56,3 +56,5 @@ reg_41_RSS_trimmed_to_five > rp_41_RSS # Because trimmed model should have highe
 # Maximum increase in RSS
 trimmed_rp_41_maxinc, trimmed_rp_reg_41_maxinc = trim_mars_spline(dd4, y, rp_41; maximum_increase_in_RSS = 5.0)
 trimmed_rp_41_maxrss, trimmed_rp_reg_41_maxrss = trim_mars_spline(dd4, y, rp_41; maximum_RSS = 100.0)
+trimmed_rp_41_maxrss_trimmed = sum(abs.(evaluate(trimmed_rp_41_maxrss, dd4) .- dd4[:y]))
+trimmed_rp_41_maxrss_trimmed < 100.0
