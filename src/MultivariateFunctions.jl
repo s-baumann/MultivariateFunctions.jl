@@ -7,6 +7,7 @@ using DataFrames: DataFrame
 using DataStructures: OrderedDict
 using Combinatorics: permutations
 using LinearAlgebra: Symmetric, inv, det
+using Optim
 
 # This includes functions for use of MultivariateFunctions with dates.
 include("date_conversions.jl")
@@ -32,4 +33,6 @@ include("4_chebyshev_approximation.jl")
 export create_chebyshev_approximation
 include("5_ols_regression.jl")
 export create_ols_approximation, create_saturated_ols_approximation
+include("6_HighDimensionalApproximation.jl")
+export create_recursive_partitioning, create_mars_spline, trim_mars_spline
 end
