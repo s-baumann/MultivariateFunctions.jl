@@ -3,3 +3,7 @@ SchumakerSpline
 GLM
 Optim
 DataFrames
+Combinatorics
+DataStructures
+Dates
+LinearAlgebra
