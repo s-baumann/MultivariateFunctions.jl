@@ -1,7 +1,4 @@
 julia 1.0
-SchumakerSpline
-GLM
-Optim
-DataStructures
-Dates
-LinearAlgebra
+Optim 0.17.2
+SchumakerSpline 1.0.4
+GLM 1.0.1
