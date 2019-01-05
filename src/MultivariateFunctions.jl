@@ -1,13 +1,13 @@
 module MultivariateFunctions
 
-using Dates
+using Dates: Date, days
 using SchumakerSpline: Schumaker
-using GLM
+using GLM: fit, LinearModel
 using DataFrames: DataFrame
 using DataStructures: OrderedDict
 using Combinatorics: permutations
 using LinearAlgebra: Symmetric, inv, det
-using Optim
+using Optim: optimize
 
 # This includes functions for use of MultivariateFunctions with dates.
 include("date_conversions.jl")
