@@ -13,37 +13,39 @@ There are a few ways in which it can be used.
 
 ## Structs
 
-There are four main UnivariateFunction structs that are part of this package. These are:
+There are four main MultivariateFunction structs that are part of this package. These are:
 * PE_Function - This is the basic function type. It has a form of $a \exp(b(x-base_)) (x-base)^d$.
 * Sum_Of_Functions - This is an array of PE_Functions. Note that by adding PE_Functions we can replicate any given polynomial. Hence from Weierstrass' approximation theorem we can approximate any continuous function on a bounded domain to any desired level of accuracy (whether this is practical in numerical computing depends on the function being approximated).
-* Piecewise_Function - This defines a different UnivariateFunction for each part of the x domain.
-* Sum_Of_Piecewise_Functions - Mathematically this does the same job as a Piecewise_Function but is substantially more efficient when the contribution of different dimensions to the Piecewise_Function is additively seperable.
+* Piecewise_Function - This defines a different MultivariateFunction for each part of the x domain.
+* Sum_Of_Piecewise_Functions - Mathematically this does the same job as a Piecewise_Function but is dramatically more efficient when the contribution of different dimensions to the Piecewise_Function is additively separable.
 
-It is possible to perform any additions, subtractions, multiplications between any two UnivariateFunctions and between Ints/Floats and any UnivariateFunction. No division is allowed and it is not possible to raise a UnivariateFunction to a negative power. This is to ensure that all univariatefunctions are analytically integrable and differentiable. This may change in future releases.
+It is possible to perform any additions, subtractions, multiplications between any two MultivariateFunctions and between Ints/Floats and any MultivariateFunction. No division is allowed and it is not possible to raise a MultivariateFunction to a negative power. This is to ensure that all Multivariatefunctions are analytically integrable and differentiable. This may change in future releases.
 
 ## Major limitations
-* It is not possible to divide by univariate functions or raise them by a negative power.
-* When multiplying pe_functions with different base dates there is often an issue of very high or very low numbers that go outside machine precision. If one were trying to change a PE_Function from base 2010 to 50, this would not generally be possible. This is because to change $a exp(x-2020)$ to $q exp(x - 50)$ we need to premultiply the first expression by $exp(-1950)$ which is a tiny number. In these cases it is better to do the algebra on paper and rewriting the code accordingly as often base changes cancel out on paper. It is also good to change bases as rarely as possible. If different univariate functions use different bases then there is a need to base change when multiplying them which can result in errors. Note that if base changes are segment in the x domain by means of a piecewise function then they should never interact meaning it is ok to use different bases here.
+* It is not possible to divide by Multivariate functions or raise them by a negative power.
+* When multiplying pe_functions with different base dates there is often an issue of very high or very low numbers that go outside machine precision. If one were trying to change a PE_Function from base 2010 to 50, this would not generally be possible. This is because to change $a exp(x-2020)$ to $q exp(x - 50)$ we need to premultiply the first expression by $exp(-1950)$ which is a tiny number. In these cases it is better to do the algebra on paper and rewriting the code accordingly as often base changes cancel out on paper. It is also good to change bases as rarely as possible. If different Multivariate functions use different bases then there is a need to base change when multiplying them which can result in errors. Note that if base changes are segment in the x domain by means of a piecewise function then they should never interact meaning it is ok to use different bases here.
 
 ## Interpolation and Splines
-So far this package support the following interpolation schemes:
+So far this package support the following interpolation schemes for one dimensional interpolation:
 * Constant interpolation from the left to the right. Such a Piecewise_Function spline can be constructed by the create_constant_interpolation_to_right method.
 * Constant interpolation from the right to the left. Such a Piecewise_Function spline can be constructed by the create_constant_interpolation_to_left method.
 * Linear interpolation. Such a Piecewise_Function spline can be constructed by the create_linear_interpolation method.
-It also supports the following spline (which can also be used for interpolation)
-* Schumaker shape preserving spline - Such a Piecewise_Function spline can be constructed by the create_quadratic_spline method.
-* Chebyshev polynomials
-MARS/EARTH Multivariate Regression Splines are planned but not yet implemented.
+* Schumaker shape preserving spline - Such a Piecewise_Function spline can be constructed by the create_quadratic_spline method. See Judd (1998) for details on how this is done.
+
+In addition the following approximation schemes are available, each of which can be used in any number of dimensions (subject to having enough computational power)
+* OLS regression - Performs an OLS regression of the data and generates a Sum_Of_Functions containing the resultant approximation. This should work well in many dimensions.
+* Chebyshev polynomials - Creates a Sum_Of_Functions that uses chebyshev polynomials to approximate a certain function. Unlike the other approximation schemes this does not take in an arbitrary collection of datapoints but rather takes in a function that it evaluates at certain points in a grid to make an approximation function. This might be useful if the original function is expensive (so you want a cheaper one). You might also want to numerically integrate a function by getting a chebyshev approximation function that can be analytically integrated. See Judd (1998) for details on how this is done.
+* Mars regression spline - Creates a Sum_Of_Piecewise_Functions representing a MARS regression spline. See Friedman (1991) for an explanation of the spline.
 
 ## Date Handling
 
 * All base dates are immediately converted to floats and are not otherwise saved. Thus there is no difference between a PE_Function created with a base as a float and one created with the matching date. This is done to simplify the code. All date conversions is done by finding the year fractions between the date and the global base date of Date(2000,1,1). This particular global base date should not affect anything as long as it is consistent. It is relatively trivial to change it (in the date_conversions.jl file) and recompile however if desired.
 
-# Univariate Examples
+# Examples
 
-## For basic algebra:
+## Univariate: Basic algebra
 
-Consider we have a two functions f and g and want to add them, multiply them by some other function h, then square it and finally integrate the result between 2.0 and 2.8. This can be done analytically with UnivariateFunctions:
+Consider we have a two functions f and g and want to add them, multiply them by some other function h, then square it and finally integrate the result between 2.0 and 2.8. This can be done analytically with MultivariateFunctions:
 ```
 f = PE_Function(1.0, 2.0, 4.0, 5)
 g = PE_Function(1.3, 2.0, 4.3, 2)
@@ -52,7 +54,7 @@ result_of_operations = (h*(f+g))^2
 integral(result_of_operations, 2.0, 2.8)
 ```
 
-## For data interpolation
+## Univariate: data interpolation
 
 Suppose we have want to approximate some function with some sampled points. First to generate some points
 ```
@@ -98,6 +100,9 @@ y = X .+ rand(Normal(),obs) .+ 7
 # And now making an approximation function
 approxFunction = create_ols_approximation(y, X, 2)
 ```
+
+## Univariate: Numerical Integration with Chebyshev polynomials
+
 And if we want to approximate the sin function in the [2.3, 5.6] bound with 7 polynomial terms and 20 approximation nodes:
 ```
 chebyshevs = create_chebyshev_approximation(sin, 20, 7, OrderedDict{Symbol,Tuple{Float64,Float64}}(:default => (2.3, 5.6)))
@@ -106,3 +111,58 @@ We can integrate the above term in the normal way to achieve Gauss-Chebyshev qua
 ```
 integral(chebyshevs, 2.3, 5.6)
 ```
+
+## Multivariate: Basic algebra
+
+Consider we have a three functions f(x) = x^2 - 8 and g(y) = exp(y) and want to add them, multiply them by some other function h(x,y) = 4 x exp(y), then square it and finally integrate the result between 2.0 and 2.8 in the x domain and 2 and 3 in the y domain. This can be done analytically with MultivariateFunctions.
+
+The additional complication from the univariate case here is that we need to define the names of the dimensions as we have more than one dimension.
+```
+f = PE_Function(1.0, Dict(:x => PE_Unit(0.0,0.0,2))) - 8
+g = PE_Function(1.0, Dict(:y => PE_Unit(1.0,0.0,0)))
+h = PE_Function(4.0, Dict([:x, :y] .=> [PE_Unit(0.0,0.0,1), PE_Unit(1.0,0.0,0)]))
+result_of_operations = (h*(f+g))^2
+integration_limits = Dict([:x, :y] .=> [(2.0,2.8), (2.0,3.0)])
+integral(result_of_operations, integration_limits)
+```
+
+## Multivariate: MARS Spline for approximation
+
+First we will generate some example data.
+```
+using MultivariateFunctions
+using Random
+using DataFrames
+using Distributions
+using DataStructures
+
+Random.seed!(1992)
+nObs = 1000
+dd = DataFrame()
+dd[:x] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
+dd[:z] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
+dd[:w] = (0.5 .* rand( Normal(),nObs)) .+ 0.7.*(dd[:z] .- dd[:x]) + 0.1 .* rand( Normal(),nObs)
+dd[:y] = (dd[:x] .*dd[:w] ) .* (dd[:z] .- dd[:w]) .+ dd[:x] + rand( Normal(),nObs)
+dd[7,:y] = 1.0
+y = :y
+x_variables = Set{Symbol}([:w, :x, :z])
+```
+It is important to note here that we have a set of symbols for x_variables. This is the set of columns in the
+dataframe that we will use to predict y - the dependent variable.
+
+We can then create an approximation with recursive partitioning:
+```
+number_of_divisions = 7
+rp_4, rp_reg_4 = create_recursive_partitioning(dd, y, x_variables, number_of_divisions; rel_tol = 1e-3)
+```
+We can also create a MARS approximation spline:
+```
+rp_1, rp_reg_1 = create_mars_spline(dd, y, x_variables, number_of_divisions; rel_tol = 1e-3)
+```
+Note that the rel_tol here is the tolerance in the optimisation step for hinges (or divisions in the recursive partitioning case). In most applied cases it generally doesn't matter much if there is a hinge at 1.0006 or at 1.0007 so in most settings this can be set higher than you would generally set the tolerance for a numerical optimiser. For this reason the default value is 1e-02.
+
+## References
+
+Friedman, Jerome (1991) Multivariate Adaptive Regression Splines. The annals of Statistics 19(1). pp. 1-141.
+
+Judd, Kenneth (1998) Numerical Methods in Economics. 9780262100717. MIT Press.
