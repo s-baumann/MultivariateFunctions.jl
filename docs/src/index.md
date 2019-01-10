@@ -1,8 +1,4 @@
-# MultivariateFunctions.jl
-
-| Build | Coverage |
-|-------|----------|
-| [![Build Status](https://travis-ci.com/s-baumann/MultivariateFunctions.jl.svg?branch=master)](https://travis-ci.org/s-baumann/MultivariateFunctions.jl) | [![Coverage Status](https://coveralls.io/repos/github/s-baumann/MultivariateFunctions.jl/badge.svg?branch=master)](https://coveralls.io/github/s-baumann/MultivariateFunctions.jl?branch=master)
+# MultivariateFunctions
 
 This implements single algebra and evaluation on Multivariate functions.
 There are a few ways in which it can be used.
@@ -11,4 +7,13 @@ There are a few ways in which it can be used.
 * All basic algebra and calculus on a MultivariateFunction can be done analytically.
 * The Newton's method is implemented so that roots and optima can be found using analytical Jacobians and Hessians.
 
-See documentation for more details.
+```@contents
+pages = ["index.md",
+         "1_structs_and_limitations.md",
+         "2_interpolation_and_splines.md",
+         "3_examples_algebra.md",
+         "3_examples_interpolation.md",
+         "3_examples_approximation.md",
+         "99_refs.md"]
+Depth = 2
+```
