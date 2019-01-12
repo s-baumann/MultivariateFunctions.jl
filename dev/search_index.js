@@ -13,7 +13,15 @@ var documenterSearchIndex = {"docs": [
     "page": "MultivariateFunctions",
     "title": "MultivariateFunctions",
     "category": "section",
-    "text": "This implements single algebra and evaluation on Multivariate functions. There are a few ways in which it can be used.This can be used for approximation functions. It can currently implement OLS functions, chebyshev polynomials, the schumaker shape preserving spline and basic interpolation schemes. It can also create Multivariate Adaptive Regression (MARS) Splines. It could be extended to implement other approximation schemes.\nAs in the StochasticIntegrals.jl package this package can be used to define functions that will be the integrands in stochastic integrals. This has the benefit that the means, variances & covariances implied by these stochastic integrals can be found analytically.\nAll basic algebra and calculus on a MultivariateFunction can be done analytically.\nThe Newton\'s method is implemented so that roots and optima can be found using analytical Jacobians and Hessians.pages = [\"index.md\",\n         \"1_structs_and_limitations.md\",\n         \"2_Interpolation_and_splines.md\",\n         \"3_examples_algebra.md\",\n         \"4_examples_interpolation.md\",\n         \"5_examples_approximation.md\",\n         \"99_refs.md\"]\nDepth = 2"
+    "text": "This implements single algebra and evaluation on Multivariate functions. There are a few ways in which it can be used.This can be used for approximation functions. It can currently implement OLS functions, chebyshev polynomials, the schumaker shape preserving spline and basic interpolation schemes. It can also create Multivariate Adaptive Regression (MARS) Splines. It could be extended to implement other approximation schemes.\nAs in the StochasticIntegrals.jl package this package can be used to define functions that will be the integrands in stochastic integrals. This has the benefit that the means, variances & covariances implied by these stochastic integrals can be found analytically.\nAll basic algebra and calculus on a MultivariateFunction can be done analytically.\nThe Newton\'s method is implemented so that roots and optima can be found using analytical Jacobians and Hessians."
+},
+
+{
+    "location": "#Contents-1",
+    "page": "MultivariateFunctions",
+    "title": "Contents",
+    "category": "section",
+    "text": "pages = [\"index.md\",\n         \"1_structs_and_limitations.md\",\n         \"2_interpolation_methods.md\",\n         \"3_approximation_methods.md\",\n         \"4_examples_algebra.md\",\n         \"5_examples_interpolation.md\",\n         \"6_examples_approximation.md\",\n         \"99_refs.md\"]\nDepth = 2"
 },
 
 {
@@ -49,7 +57,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "2_Interpolation_and_splines/#",
+    "location": "2_interpolation_methods/#",
     "page": "Univariate Interpolation Methods",
     "title": "Univariate Interpolation Methods",
     "category": "page",
@@ -57,23 +65,31 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "2_Interpolation_and_splines/#Univariate-Interpolation-Methods-1",
+    "location": "2_interpolation_methods/#Univariate-Interpolation-Methods-1",
     "page": "Univariate Interpolation Methods",
     "title": "Univariate Interpolation Methods",
     "category": "section",
-    "text": "So far this package support the following interpolation schemes for one dimensional interpolation:Constant interpolation from the left to the right. Such a PiecewiseFunction spline can be constructed by the createconstantinterpolationto_right method.\nConstant interpolation from the right to the left. Such a PiecewiseFunction spline can be constructed by the createconstantinterpolationto_left method.\nLinear interpolation. Such a PiecewiseFunction spline can be constructed by the createlinear_interpolation method.\nSchumaker shape preserving spline - Such a PiecewiseFunction spline can be constructed by the createquadratic_spline method. See Judd (1998) for details on how this is done.Note that interpolation in higher dimensions is hard and not such methods are yet available. There are some approximation shemes that might work in this case however:"
+    "text": "So far this package support the following interpolation schemes for one dimensional interpolation:Constant interpolation from the left to the right. Such a PiecewiseFunction spline can be constructed by the createconstantinterpolationto_right method.\nConstant interpolation from the right to the left. Such a PiecewiseFunction spline can be constructed by the createconstantinterpolationto_left method.\nLinear interpolation. Such a PiecewiseFunction spline can be constructed by the createlinear_interpolation method.\nSchumaker shape preserving spline - Such a PiecewiseFunction spline can be constructed by the createquadratic_spline method. See Judd (1998) for details on how this is done.Note that interpolation in higher dimensions is hard and no such methods are yet available in this package. There are some approximation schemes that might work in this case however as described in the next section."
 },
 
 {
-    "location": "2_Interpolation_and_splines/#Supported-Approximation-Methods-1",
-    "page": "Univariate Interpolation Methods",
+    "location": "3_approximation_methods/#",
+    "page": "Supported Approximation Methods",
+    "title": "Supported Approximation Methods",
+    "category": "page",
+    "text": ""
+},
+
+{
+    "location": "3_approximation_methods/#Supported-Approximation-Methods-1",
+    "page": "Supported Approximation Methods",
     "title": "Supported Approximation Methods",
     "category": "section",
     "text": "In addition the following approximation schemes are available, each of which can be used in any number of dimensions (subject to having enough computational power)OLS regression - Performs an OLS regression of the data and generates a SumOfFunctions containing the resultant approximation. This should work well in many dimensions.\nChebyshev polynomials - Creates a SumOfFunctions that uses chebyshev polynomials to approximate a certain function. Unlike the other approximation schemes this does not take in an arbitrary collection of datapoints but rather takes in a function that it evaluates at certain points in a grid to make an approximation function. This might be useful if the original function is expensive (so you want a cheaper one). You might also want to numerically integrate a function by getting a chebyshev approximation function that can be analytically integrated. See Judd (1998) for details on how this is done.\nMars regression spline - Creates a SumOfPiecewise_Functions representing a MARS regression spline. See Friedman (1991) for an explanation of the spline."
 },
 
 {
-    "location": "3_examples_algebra/#",
+    "location": "4_examples_algebra/#",
     "page": "Examples - Algebra",
     "title": "Examples - Algebra",
     "category": "page",
@@ -81,7 +97,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "3_examples_algebra/#Examples-Algebra-1",
+    "location": "4_examples_algebra/#Examples-Algebra-1",
     "page": "Examples - Algebra",
     "title": "Examples - Algebra",
     "category": "section",
@@ -89,7 +105,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "3_examples_algebra/#Univariate:-Basic-algebra-1",
+    "location": "4_examples_algebra/#Univariate:-Basic-algebra-1",
     "page": "Examples - Algebra",
     "title": "Univariate: Basic algebra",
     "category": "section",
@@ -97,7 +113,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "3_examples_algebra/#Multivariate:-Basic-algebra-1",
+    "location": "4_examples_algebra/#Multivariate:-Basic-algebra-1",
     "page": "Examples - Algebra",
     "title": "Multivariate: Basic algebra",
     "category": "section",
@@ -105,7 +121,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "4_examples_interpolation/#",
+    "location": "5_examples_interpolation/#",
     "page": "Examples - Data interpolation",
     "title": "Examples - Data interpolation",
     "category": "page",
@@ -113,7 +129,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "4_examples_interpolation/#Examples-Data-interpolation-1",
+    "location": "5_examples_interpolation/#Examples-Data-interpolation-1",
     "page": "Examples - Data interpolation",
     "title": "Examples - Data interpolation",
     "category": "section",
@@ -121,7 +137,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "5_examples_approximation/#",
+    "location": "6_examples_approximation/#",
     "page": "Examples - Approximation",
     "title": "Examples - Approximation",
     "category": "page",
@@ -129,7 +145,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "5_examples_approximation/#Examples-Approximation-1",
+    "location": "6_examples_approximation/#Examples-Approximation-1",
     "page": "Examples - Approximation",
     "title": "Examples - Approximation",
     "category": "section",
@@ -137,7 +153,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "5_examples_approximation/#OLS-approximation-1",
+    "location": "6_examples_approximation/#OLS-approximation-1",
     "page": "Examples - Approximation",
     "title": "OLS approximation",
     "category": "section",
@@ -145,7 +161,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "5_examples_approximation/#Numerical-Integration-with-Chebyshev-polynomials-1",
+    "location": "6_examples_approximation/#Numerical-Integration-with-Chebyshev-polynomials-1",
     "page": "Examples - Approximation",
     "title": "Numerical Integration with Chebyshev polynomials",
     "category": "section",
@@ -153,7 +169,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "5_examples_approximation/#Multivariate:-MARS-Spline-for-approximation-1",
+    "location": "6_examples_approximation/#Multivariate:-MARS-Spline-for-approximation-1",
     "page": "Examples - Approximation",
     "title": "Multivariate: MARS Spline for approximation",
     "category": "section",
@@ -162,15 +178,15 @@ var documenterSearchIndex = {"docs": [
 
 {
     "location": "99_refs/#",
-    "page": "-",
-    "title": "-",
+    "page": "References",
+    "title": "References",
     "category": "page",
     "text": ""
 },
 
 {
     "location": "99_refs/#References-1",
-    "page": "-",
+    "page": "References",
     "title": "References",
     "category": "section",
     "text": "Friedman, Jerome (1991) Multivariate Adaptive Regression Splines. The annals of Statistics 19(1). pp. 1-141.Judd, Kenneth (1998) Numerical Methods in Economics. 9780262100717. MIT Press."
