@@ -1,4 +1,4 @@
-## Univariate: data interpolation
+# Examples - Data interpolation
 
 Suppose we have want to approximate some function with some sampled points. First to generate some points
 ```

@@ -1,4 +1,4 @@
-## Supported Univariate Interpolation Methods
+# Univariate Interpolation Methods
 So far this package support the following interpolation schemes for one dimensional interpolation:
 * Constant interpolation from the left to the right. Such a Piecewise_Function spline can be constructed by the create_constant_interpolation_to_right method.
 * Constant interpolation from the right to the left. Such a Piecewise_Function spline can be constructed by the create_constant_interpolation_to_left method.
@@ -7,7 +7,7 @@ So far this package support the following interpolation schemes for one dimensio
 
 Note that interpolation in higher dimensions is hard and not such methods are yet available. There are some approximation shemes that might work in this case however:
 
-## Supported Approximation Methods
+# Supported Approximation Methods
 
 In addition the following approximation schemes are available, each of which can be used in any number of dimensions (subject to having enough computational power)
 * OLS regression - Performs an OLS regression of the data and generates a Sum_Of_Functions containing the resultant approximation. This should work well in many dimensions.

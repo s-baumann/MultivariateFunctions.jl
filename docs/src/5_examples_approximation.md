@@ -1,5 +1,7 @@
 
-## Univariate: Numerical approximation with OLS
+# Examples - Approximation
+
+## OLS approximation
 
 If we have lots of data that we want to summarise with OLS
 ```
@@ -15,7 +17,7 @@ y = X .+ rand(Normal(),obs) .+ 7
 approxFunction = create_ols_approximation(y, X, 2)
 ```
 
-## Univariate: Numerical Integration with Chebyshev polynomials
+## Numerical Integration with Chebyshev polynomials
 
 And if we want to approximate the sin function in the [2.3, 5.6] bound with 7 polynomial terms and 20 approximation nodes:
 ```

@@ -1,4 +1,4 @@
-## Structs
+# Structs
 
 There are four main MultivariateFunction structs that are part of this package. These are:
 * PE_Function - This is the basic function type. It has a form of $a \exp(b(x-base_)) (x-base)^d$.

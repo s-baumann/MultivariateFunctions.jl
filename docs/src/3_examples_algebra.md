@@ -1,4 +1,4 @@
-# Examples
+# Examples - Algebra
 
 ## Univariate: Basic algebra
 
