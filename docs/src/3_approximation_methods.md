@@ -1,12 +1,3 @@
-# Univariate Interpolation Methods
-So far this package support the following interpolation schemes for one dimensional interpolation:
-* Constant interpolation from the left to the right. Such a Piecewise_Function spline can be constructed by the create_constant_interpolation_to_right method.
-* Constant interpolation from the right to the left. Such a Piecewise_Function spline can be constructed by the create_constant_interpolation_to_left method.
-* Linear interpolation. Such a Piecewise_Function spline can be constructed by the create_linear_interpolation method.
-* Schumaker shape preserving spline - Such a Piecewise_Function spline can be constructed by the create_quadratic_spline method. See Judd (1998) for details on how this is done.
-
-Note that interpolation in higher dimensions is hard and not such methods are yet available. There are some approximation shemes that might work in this case however:
-
 # Supported Approximation Methods
 
 In addition the following approximation schemes are available, each of which can be used in any number of dimensions (subject to having enough computational power)

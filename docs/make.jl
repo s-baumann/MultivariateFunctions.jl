@@ -6,10 +6,11 @@ makedocs(
     modules = [MultivariateFunctions],
     pages = ["index.md",
              "1_structs_and_limitations.md",
-             "2_Interpolation_and_splines.md",
-             "3_examples_algebra.md",
-             "4_examples_interpolation.md",
-             "5_examples_approximation.md",
+             "2_interpolation_methods.md",
+             "3_approximation_methods.md",
+             "4_examples_algebra.md",
+             "5_examples_interpolation.md",
+             "6_examples_approximation.md",
              "99_refs.md"]
 )
 

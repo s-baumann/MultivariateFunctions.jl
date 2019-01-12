@@ -1,4 +1,4 @@
-## References
+# References
 
 Friedman, Jerome (1991) Multivariate Adaptive Regression Splines. The annals of Statistics 19(1). pp. 1-141.
 

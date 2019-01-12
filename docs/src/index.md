@@ -7,13 +7,16 @@ There are a few ways in which it can be used.
 * All basic algebra and calculus on a MultivariateFunction can be done analytically.
 * The Newton's method is implemented so that roots and optima can be found using analytical Jacobians and Hessians.
 
+## Contents
+
 ```@contents
 pages = ["index.md",
          "1_structs_and_limitations.md",
-         "2_Interpolation_and_splines.md",
-         "3_examples_algebra.md",
-         "4_examples_interpolation.md",
-         "5_examples_approximation.md",
+         "2_interpolation_methods.md",
+         "3_approximation_methods.md",
+         "4_examples_algebra.md",
+         "5_examples_interpolation.md",
+         "6_examples_approximation.md",
          "99_refs.md"]
 Depth = 2
 ```
