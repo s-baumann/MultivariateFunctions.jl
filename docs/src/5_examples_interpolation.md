@@ -27,6 +27,6 @@ integral(func, Date(2020,1,1), Date(2021,1,2))
 ```
 If we had wanted to interpolate instead with a constant method(from left or from right) or by linearly
 interpolating then we could have just generated func with a different method:
-create_constant_interpolation_to_left,
-create_constant_interpolation_to_right or
-create_linear_interpolation.
+create\_constant\_interpolation\_to\_left,
+create\_constant\_interpolation\_to\_right or
+create\_linear\_interpolation.

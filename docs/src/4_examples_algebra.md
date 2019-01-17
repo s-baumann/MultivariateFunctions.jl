@@ -14,7 +14,7 @@ integral(result_of_operations, 2.0, 2.8)
 
 ## Multivariate: Basic algebra
 
-Consider we have a three functions f(x) = x^2 - 8 and g(y) = exp(y) and want to add them, multiply them by some other function h(x,y) = 4 x exp(y), then square it and finally integrate the result between 2.0 and 2.8 in the x domain and 2 and 3 in the y domain. This can be done analytically with MultivariateFunctions.
+Consider we have a three functions $$f(x) = x^2 - 8$$ and $$g(y) = exp(y)$$ and want to add them, multiply them by some other function $$h(x,y) = 4 x exp(y)$$, then square it and finally integrate the result between 2.0 and 2.8 in the x domain and 2 and 3 in the y domain. This can be done analytically with MultivariateFunctions.
 
 The additional complication from the univariate case here is that we need to define the names of the dimensions as we have more than one dimension.
 ```
