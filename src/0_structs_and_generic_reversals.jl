@@ -399,9 +399,14 @@ struct Piecewise_Function <: MultivariateFunction
 end
 Base.broadcastable(e::Piecewise_Function) = Ref(e)
 
+function rebadge(f::Missing, mapping::Dict{Symbol,Symbol})
+    return missing
+end
+
 function rebadge(f::Piecewise_Function, mapping::Dict{Symbol,Symbol})
     funcs = rebadge.(f.functions_, Ref(mapping))
     new_thresholds = OrderedDict{Symbol,Array{Float64,1}}()
+    thresholds = f.thresholds_
     for m in keys(thresholds)
         if m in keys(mapping)
             new_thresholds[mapping[m]] = thresholds[m]

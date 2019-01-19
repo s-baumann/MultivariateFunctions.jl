@@ -5,20 +5,21 @@ tol = 10*eps()
 # Testing constructors.
 before = PE_Function(0.0,0.0,0.0,1)
 first_ = PE_Function(1.0,0.0,0.0,1)
-second= PE_Function(20.0,0.0,0.0,2)
-last_  = Sum_Of_Functions([first_, second])
+secc = PE_Function(20.0,0.0,0.0,2)
+last_  = Sum_Of_Functions([first_, secc])
 
-f1 = Piecewise_Function([before, first_, second, last_], [-Inf, -1.0,3.0, 10.0])
+f1 = Piecewise_Function([before, first_, secc, last_], [-Inf, -1.0,3.0, 10.0])
 abs(evaluate(f1, -10.0) - 0.0 ) < tol
 abs(evaluate(f1,   1.0) - 1.0 ) < tol
 abs(evaluate(f1,   5.0) - 500.0) < tol
 abs(evaluate(f1,  20.0) - 20.0 - 20*20*20) < tol
-f2 = Piecewise_Function([before, first_, second, last_], [-0.1, 0.0,2.0, 40.0])
+f2 = Piecewise_Function([before, first_, secc, last_], [-0.1, 0.0,2.0, 40.0])
 
-f3 =  Piecewise_Function([before, f1, second, last_], [-0.1, 0.0,2.0, 40.0])
-f4 =  Piecewise_Function([second, f1, second, last_], [-2.1, -1.1,4.0, 40.0])
+f3 =  Piecewise_Function([before, f1, secc, last_], [-0.1, 0.0,2.0, 40.0])
+f4 =  Piecewise_Function([secc, f1, secc, last_], [-2.1, -1.1,4.0, 40.0])
 
-
+rebadge_test = rebadge(f3, Dict{Symbol,Symbol}(:default => :tester))
+pop!(underlying_dimensions(rebadge_test)) == :tester
 function test_result(func, eval0, eval5, len = 1)
     val_test0 = abs(evaluate(func, 0.0) - eval0) < 1e-09
     if (!val_test0)
