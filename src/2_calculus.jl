@@ -403,12 +403,12 @@ function hypercubes_to_integrate(f::Piecewise_Function, lims::Dict{Symbol,Tuple{
         new_dict[dimen] = censored_thresholds2
     end
     lengths_minus_one = length.(get.(Ref(new_dict),ks,0)) .- 1
-    index_combinations = vcat.(collect(collect(Iterators.product(range.(1,lengths_minus_one)...))))
-    indices = (collect(collect(Iterators.product(range.(1,lengths_minus_one)...)))...,)
+    index_combinations = vcat.(collect(collect(Iterators.product(range.(1,lengths_minus_one; step = 1)...))))
+    indices = (collect(collect(Iterators.product(range.(1,lengths_minus_one; step = 1)...)))...,)
     indices = collect(collect.(indices))
     total_len = length(indices)
     new_cubes = Array{Dict{Symbol,Tuple{Float64,Float64}},1}(undef,total_len)
-    for i in range(1, total_len)
+    for i in range(1, total_len; step = 1)
         new_cube = Dict{Symbol,Tuple{Float64,Float64}}()
         ind = indices[i]
         for j in 1:length(ks)

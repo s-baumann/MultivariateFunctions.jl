@@ -355,7 +355,7 @@ struct Piecewise_Function <: MultivariateFunction
         upper_point = get_point_coordinates(f, upper)
         number_in_each_dimension = (upper_point .- lower_point)
 
-        funcs = f.functions_[range.(lower_point,upper_point)...]
+        funcs = f.functions_[range.(lower_point,upper_point; step = 1)...]
         pad_start = Array{Bool,1}()
         pad_end = Array{Bool,1}()
         new_thresholds_ = OrderedDict{Symbol,Array{Float64,1}}()
@@ -385,7 +385,7 @@ struct Piecewise_Function <: MultivariateFunction
         else
             funcs_ .= Missing()
         end
-        funcs_[range.(1 .+ pad_start, pad_start .+ vcat(size(funcs)...)  )...] = funcs
+        funcs_[range.(1 .+ pad_start, pad_start .+ vcat(size(funcs)...)  ; step = 1)...] = funcs
         return Piecewise_Function(funcs_, new_thresholds_)
     end
     function Piecewise_Function(functions_::Array, starts::Array{Float64,1})
