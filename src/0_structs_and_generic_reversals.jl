@@ -142,10 +142,16 @@ end
 """
 function evaluate(f::PE_Function, coordinates::Dict{Symbol,Float64})
     val = f.multiplier_
-    for k in intersect(keys(f.units_), keys(coordinates))
-        val = val * evaluate(f.units_[k], coordinates[k])
+    units = deepcopy(f.units_)
+    for k in intersect(keys(units), keys(coordinates))
+        unit = pop!(units, k)
+        val = val * evaluate(unit, coordinates[k])
     end
-    return val
+    if length(units) == 0
+        return val
+    else
+        return PE_Function(val, units)
+    end
 end
 
 """
