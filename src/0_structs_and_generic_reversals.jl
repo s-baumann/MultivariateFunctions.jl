@@ -256,8 +256,12 @@ Base.broadcastable(e::Sum_Of_Functions) = Ref(e)
 #end
 
 function evaluate(f::Sum_Of_Functions, coordinates::Dict{Symbol,Float64})
-    vals = evaluate.(f.functions_, Ref(coordinates))
-    return sum(vals)
+    if length(f.functions_) > 0
+        vals = evaluate.(f.functions_, Ref(coordinates))
+        return sum(vals)
+    else
+        return 0.0
+    end
 end
 
 function underlying_dimensions(a::Sum_Of_Functions)
@@ -279,8 +283,12 @@ function rebadge(f::Sum_Of_Functions, mapping::Dict{Symbol,Symbol})
 end
 
 function evaluate(f::Sum_Of_Functions, coordinates::Float64)
-    vals = evaluate.(f.functions_, Ref(coordinates))
-    return sum(vals)
+    if length(f.functions_) > 0
+        vals = evaluate.(f.functions_, Ref(coordinates))
+        return sum(vals)
+    else
+        return 0.0
+    end
 end
 
 function convert(::Type{Sum_Of_Functions}, f::PE_Function)
