@@ -41,3 +41,19 @@ numerical_integral  = integral(spline, lhs,rhs)
 
 analytical = analytic_integral(lhs,rhs)
 abs(  analytical - numerical_integral  ) < 0.001
+
+
+#= Speed test of MultivariateFunctions vs Univariate vs SchumakerSpline
+using SchumakerSpline
+using UnivariateFunctions
+x = collect(range(0.001, stop=10, length=1000))
+y = log.(x)
+@time schum = SchumakerSpline.Schumaker(x, y)
+@time univ = UnivariateFunctions.create_quadratic_spline(x,y)
+@time multiv = MultivariateFunctions.create_quadratic_spline(x,y)
+@time SchumakerSpline.evaluate(schum, 7.8)
+@time UnivariateFunctions.evaluate(univ, 7.8)
+@time MultivariateFunctions.evaluate(multiv, 7.8)
+@time MultivariateFunctions.evaluate(multiv, 7.8; variable = :default)
+@time MultivariateFunctions.evaluate(multiv, Dict{Symbol,Float64}(:default => 7.8))
+=#

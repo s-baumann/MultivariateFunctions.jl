@@ -166,13 +166,8 @@ function underlying_dimensions(a::PE_Function)
     return Set(keys(a.units_))
 end
 
-function evaluate(f::MultivariateFunction, coordinate::Float64)
-    if length(setdiff(underlying_dimensions(f), Set([default_symbol]))) == 0
-        coordinates = Dict([default_symbol] .=> coordinate)
-        return evaluate(f, coordinates)
-    else
-        error("It is not possible to use the evaluate method without using a dict unless the only variable is the default one.")
-    end
+function evaluate(f::MultivariateFunction, coordinate::Float64; variable::Symbol = default_symbol)
+        return evaluate(f, Dict{Symbol,Float64}(variable => coordinate))
 end
 
 """
@@ -252,10 +247,6 @@ struct Sum_Of_Functions <: MultivariateFunction
 end
 Base.broadcastable(e::Sum_Of_Functions) = Ref(e)
 
-#function zero(f::Sum_Of_Functions)
-#    return Sum_Of_Functions([])
-#end
-
 function evaluate(f::Sum_Of_Functions, coordinates::Dict{Symbol,Float64})
     if length(f.functions_) > 0
         vals = evaluate.(f.functions_, Ref(coordinates))
@@ -281,15 +272,6 @@ function rebadge(f::Sum_Of_Functions, mapping::Dict{Symbol,Symbol})
         funcs[i] = rebadge(f.functions_[i], mapping)
     end
     return Sum_Of_Functions(funcs)
-end
-
-function evaluate(f::Sum_Of_Functions, coordinates::Float64)
-    if length(f.functions_) > 0
-        vals = evaluate.(f.functions_, Ref(coordinates))
-        return sum(vals)
-    else
-        return 0.0
-    end
 end
 
 function convert(::Type{Sum_Of_Functions}, f::PE_Function)
@@ -494,14 +476,6 @@ function evaluate(f::Piecewise_Function, coordinates::Dict{Symbol,Float64})
 end
 function evaluate(f::Missing, coordinates::Dict{Symbol,Float64})
     return missing
-end
-function evaluate(f::Piecewise_Function, coordinate::Float64)
-    if underlying_dimensions(f) == Set([default_symbol])
-        coordinates_ = Dict{Symbol,Float64}(default_symbol => coordinate)
-        return evaluate(f, coordinates_)
-    else
-        error("Cannot evaluate a Piecewise function without a dictionary set of coordinates unless it is a MultivariateFunction with only the default dimension being used.")
-    end
 end
 
 function underlying_dimensions(f::Piecewise_Function)
