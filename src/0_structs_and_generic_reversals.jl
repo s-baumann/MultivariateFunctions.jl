@@ -1,5 +1,6 @@
 import Base.+, Base.-, Base./, Base.*, Base.^
 import Base.sort, Base.convert, Base.zero
+import SchumakerSpline.evaluate
 using Dates
 abstract type MultivariateFunction end
 """
