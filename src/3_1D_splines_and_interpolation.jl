@@ -11,6 +11,11 @@ function create_quadratic_spline(x::Array{Date,1},y::Array{Float64,1} ; gradient
     return create_quadratic_spline(x_as_Float64s, y; gradients = gradients, extrapolation = extrapolation, left_gradient = left_gradient, right_gradient = right_gradient, dim_name = dim_name)
 end
 
+function create_quadratic_spline(x::Array{DatePeriod,1},y::Array{Float64,1} ; gradients::Union{Missing,Array{Float64,1}} = missing, extrapolation::Schumaker_ExtrapolationSchemes = Curve, left_gradient::Union{Missing,Float64} = missing, right_gradient::Union{Missing,Float64} = missing, dim_name::Symbol = default_symbol)
+    x_as_Float64s = period_length.(x)
+    return create_quadratic_spline(x_as_Float64s, y; gradients = gradients, extrapolation = extrapolation, left_gradient = left_gradient, right_gradient = right_gradient, dim_name = dim_name)
+end
+
 function create_quadratic_spline(x::Array{Int,1},y::Array{Float64,1} ; gradients::Union{Missing,Array{Float64,1}} = missing, extrapolation::Schumaker_ExtrapolationSchemes = Curve, left_gradient::Union{Missing,Float64} = missing, right_gradient::Union{Missing,Float64} = missing, dim_name::Symbol = default_symbol)
     x_as_Float64s = convert.(Float64, x)
     return create_quadratic_spline(x_as_Float64s, y; gradients = gradients, extrapolation = extrapolation, left_gradient = left_gradient, right_gradient = right_gradient, dim_name = dim_name)
