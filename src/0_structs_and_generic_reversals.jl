@@ -166,10 +166,13 @@ function underlying_dimensions(a::PE_Function)
     return Set(keys(a.units_))
 end
 
-function evaluate(f::MultivariateFunction, coordinate::Float64; variable::Symbol = default_symbol)
-        return evaluate(f, Dict{Symbol,Float64}(variable => coordinate))
+function evaluate(f::MultivariateFunction, coordinate::Float64; dim_name::Symbol = default_symbol)
+    return evaluate(f, Dict{Symbol,Float64}(dim_name => coordinate))
 end
-
+function evaluate(f::MultivariateFunction, day::Date; dim_name::Symbol = default_symbol)
+    coordinate = years_from_global_base(day)
+    return evaluate(f, Dict{Symbol,Float64}(dim_name => coordinate))
+end
 """
     Sum_Of_Functions(functions)
 

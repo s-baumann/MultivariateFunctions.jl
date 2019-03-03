@@ -534,10 +534,6 @@ function ^(number::Union{Int,Float64}, f::MultivariateFunction)
 end
 
 ###
-function evaluate(f::MultivariateFunction, day_::Date)
-    day_as_float = years_from_global_base(day_)
-    return evaluate(f, day_as_float)
-end
 function integral(f::MultivariateFunction, limits::Dict{Symbol,Tuple{Any,Any}})
     new_limits = convert_to_conformable_dict(limits)
     return integral(f, new_limits)
