@@ -11,7 +11,7 @@ using Optim
 
 # This includes functions for use of MultivariateFunctions with dates.
 include("date_conversions.jl")
-export years_between, years_from_global_base
+export years_between, years_from_global_base, period_length
 # The abstract type MultivariateFunction and all structs are implemented here.
 # In addition we have operator reversals and some supporting functions.
 include("0_structs_and_generic_reversals.jl")
