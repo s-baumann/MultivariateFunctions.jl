@@ -44,6 +44,7 @@ end
 
 """
     create_constant_interpolation_to_right(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+    create_constant_interpolation_to_right(x::Array{DatePeriod,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     create_constant_interpolation_to_right(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
 
 Create a piecewise constant one-dimensional function which carries values from the left to the right.
@@ -51,6 +52,11 @@ Create a piecewise constant one-dimensional function which carries values from t
 function create_constant_interpolation_to_right(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     x_Float = years_from_global_base.(x)
     return create_constant_interpolation_to_right(x_Float,y; dim_name = dim_name)
+end
+
+function create_constant_interpolation_to_right(x::Array{DatePeriod,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+    x_as_Float64s = period_length.(x)
+    return create_constant_interpolation_to_right(x_as_Float64s, y; dim_name = dim_name)
 end
 
 function create_constant_interpolation_to_right(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
@@ -63,6 +69,7 @@ end
 
 """
     create_constant_interpolation_to_left(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+    create_constant_interpolation_to_left(x::Array{DatePeriod,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     create_constant_interpolation_to_left(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
 
 Create a piecewise constant one-dimensional function which carries values from the right to the left.
@@ -70,6 +77,11 @@ Create a piecewise constant one-dimensional function which carries values from t
 function create_constant_interpolation_to_left(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     x_Float = years_from_global_base.(x)
     return create_constant_interpolation_to_left(x_Float , y ; dim_name = dim_name)
+end
+
+function create_constant_interpolation_to_left(x::Array{DatePeriod,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+    x_as_Float64s = period_length.(x)
+    return create_constant_interpolation_to_left(x_as_Float64s, y; dim_name = dim_name)
 end
 
 function create_constant_interpolation_to_left(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
@@ -81,6 +93,7 @@ end
 
 """
     create_linear_interpolation(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+    create_linear_interpolation(x::Array{DatePeriod,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     create_linear_interpolation(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
 
 Create a piecewise linear one-dimensional function which interpolates linearly between datapoints.
@@ -88,6 +101,11 @@ Create a piecewise linear one-dimensional function which interpolates linearly b
 function create_linear_interpolation(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     x_Float = years_from_global_base.(x)
     return create_linear_interpolation(x_Float,y; dim_name = dim_name)
+end
+
+function create_linear_interpolation(x::Array{DatePeriod,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
+    x_as_Float64s = period_length.(x)
+    return create_linear_interpolation(x_as_Float64s, y; dim_name = dim_name)
 end
 
 function create_linear_interpolation(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
