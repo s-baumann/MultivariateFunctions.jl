@@ -53,7 +53,7 @@ not the evaluation time.
 function create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2)
     Arr = Array{Sum_Of_Functions,length(x_variables)}(undef, repeat([1], length(x_variables))...)
     Arr[repeat([1], length(x_variables))...] = Sum_Of_Functions([PE_Function(1.0)])
-    pw_func = Piecewise_Function(Arr, OrderedDict{Symbol,Array{Float64,1}}(x_variables .=> repeat([[-Inf]],3)) )
+    pw_func = Piecewise_Function(Arr, OrderedDict{Symbol,Array{Float64,1}}(x_variables .=> repeat([[-Inf]],length(x_variables))) )
     array_of_funcs = Array{Piecewise_Function,1}([pw_func])
     for M in 2:MaxM
         best_lof    = Inf
@@ -91,7 +91,7 @@ function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, 
     # This should be made more efficient using FAST MARS. https://statistics.stanford.edu/sites/default/files/LCS%20110.pdf
     Arr = Array{Sum_Of_Functions,length(x_variables)}(undef, repeat([1], length(x_variables))...)
     Arr[repeat([1], length(x_variables))...] = Sum_Of_Functions([PE_Function(1.0)])
-    pw_func = Piecewise_Function(Arr, OrderedDict{Symbol,Array{Float64,1}}(x_variables .=> repeat([[-Inf]],3)) )
+    pw_func = Piecewise_Function(Arr, OrderedDict{Symbol,Array{Float64,1}}(x_variables .=> repeat([[-Inf]],length(x_variables))) )
     array_of_funcs = Array{Piecewise_Function,1}([pw_func])
     for M in 2:MaxM
         best_lof    = Inf
