@@ -394,8 +394,8 @@ function hypercubes_to_integrate(f::Piecewise_Function, lims::Dict{Symbol,Tuple{
     for dimen in ks
         lower = limits[dimen][1]
         upper = limits[dimen][2]
-        if lower >= upper
-            error(string("The lower limit of integration is higher than the upper for dimension ", dim))
+        if lower + eps() >= upper
+            error(string("The lower limit of integration is higher than the upper for dimension ", dimen))
         end
         thresholds = f.thresholds_[dimen]
         censored_thresholds = vcat(lower, thresholds[thresholds .> lower])
