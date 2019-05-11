@@ -1,24 +1,24 @@
 
 """
-    create_saturated_ols_approximation(dd::DataFrame, y::Symbol, x_variables::Array{Symbol,1}, degree::Int; intercept::Bool = true,  bases::Dict{Symbol,Float64} = Dict{Symbol,Float64}(x_variables .=> repeat([0.0],length(x_variables))))
+    create_saturated_ols_approximation(dd::DataFrame, y::Symbol, x_variables::AbstractArray{Symbol,1}, degree::Int; intercept::Bool = true,  bases::Dict{Symbol,Real} = Dict{Symbol,Float64}(x_variables .=> repeat([0.0],length(x_variables))))
 This creates MultivariateFunction from an OLS regression predicting some variable. You input a dataframe and specify what column in that dataframe
 is to be predicted by inputting a symbol y. you also put in an array of what x_variables should be used in prediction. A saturated ols model is then calculated up to the specified degree which is returned as a MultivariateFunction.
 """
-function create_saturated_ols_approximation(dd::DataFrame, y::Symbol, x_variables::Array{Symbol,1}, degree::Int; intercept::Bool = true,  bases::Dict{Symbol,Float64} = Dict{Symbol,Float64}(x_variables .=> repeat([0.0],length(x_variables))))
-    model = Array{PE_Function,1}()
+function create_saturated_ols_approximation(dd::DataFrame, y::Symbol, x_variables::AbstractArray{Symbol,1}, degree::Int; intercept::Bool = true,  bases::Union{Dict{Symbol,Real},Dict{Symbol,R}} = Dict{Symbol,Float64}(x_variables .=> repeat([0.0],length(x_variables)))) where R<:Real
+    model = Array{PE_Function{Float64},1}()
     if intercept
-        append!(model, [PE_Function(1.0,Dict{Symbol,PE_Unit}())] )
+        append!(model, [PE_Function(1.0,Dict{Symbol,PE_Unit{Float64}}())] )
     end
     if degree > 0
         number_of_variables = length(x_variables)
-        linear_set = Array{PE_Function,1}(undef, number_of_variables)
+        linear_set = Array{PE_Function{Float64},1}(undef, number_of_variables)
         for i in 1:length(x_variables)
-            linear_set[i] = PE_Function(1.0,Dict{Symbol,PE_Unit}(x_variables[i] => PE_Unit(0.0,bases[x_variables[i]],1) ))
+            linear_set[i] = PE_Function(1.0,Dict{Symbol,PE_Unit{Float64}}(x_variables[i] => PE_Unit(0.0,bases[x_variables[i]],1) ))
         end
-        higher_order_terms = Array{Array{PE_Function,1},1}(undef,degree)
+        higher_order_terms = Array{Array{PE_Function{Float64},1},1}(undef,degree)
         higher_order_terms[1] = linear_set
         for i in 2:degree
-            degree_terms = Array{PE_Function,1}()
+            degree_terms = Array{PE_Function{Float64},1}()
             for j in 1:number_of_variables
                 append!(degree_terms, linear_set[j] .* hcat(higher_order_terms[i-1]))
             end
@@ -54,20 +54,21 @@ function create_ols_approximation(dd::DataFrame, y::Symbol, model::Sum_Of_Piecew
     return create_ols_approximation(dd, y, vcat( model.functions_, model.global_funcs_ ))
 end
 """
-    create_ols_approximation(y::Array{Float64,1}, x::Array{Float64,1}, degree::Int; intercept::Bool = true, dim_name::Symbol = default_symbol, base_x::Float64 = 0.0)
-    create_ols_approximation(y::Array{Float64,1}, x::Array{Date,1}, degree::Int; intercept::Bool = true, dim_name::Symbol = default_symbol, base_date::Date = global_base_date)
+    create_ols_approximation(y::Array{T,1}, x::Array{R,1}, degree::Int; intercept::Bool = true, dim_name::Symbol = default_symbol, base_x::R = 0.0) where T<:Real where R<:Real
+    create_ols_approximation(y::Array{T,1}, x::Array{Date,1}, degree::Int; intercept::Bool = true, dim_name::Symbol = default_symbol, base_date::Date = global_base_date) where T<:Real
 
 This predicts a linear relationship between the y and x arrays and creates a MultivariateFunction containing the approximation function. The degree specifies how many higher
 order terms of x should be used (for instance degree 2 implies x and x^2 are both used to predict y).
 """
-function create_ols_approximation(y::Array{Float64,1}, x::Array{Float64,1}, degree::Int; intercept::Bool = true, dim_name::Symbol = default_symbol, base_x::Float64 = 0.0)
+function create_ols_approximation(y::Array{T,1}, x::Array{R,1}, degree::Integer; intercept::Bool = true, dim_name::Symbol = default_symbol, base_x::R = 0.0) where T<:Real where R<:Real
+    promo_type = promote_type(T,R)
     dd = DataFrame()
-    dd[dim_name] = x
-    dd[:y]       = y
-    base_dict = Dict{Symbol,Float64}(dim_name => base_x)
+    dd[dim_name] = convert.(Ref(promo_type), x)
+    dd[:y]       = convert.(Ref(promo_type), y)
+    base_dict = Dict{Symbol,promo_type}(dim_name => base_x)
     return create_saturated_ols_approximation(dd, :y, [dim_name], degree; intercept = intercept, bases = base_dict)
 end
 
-function create_ols_approximation(y::Array{Float64,1}, x::Array{Date,1}, degree::Int; intercept::Bool = true, dim_name::Symbol = default_symbol, base_date::Date = global_base_date)
-    return  create_ols_approximation(y, years_from_global_base.(x), degree; intercept = intercept, dim_name = dim_name, base_x = years_from_global_base(base_date))
+function create_ols_approximation(y::Array{T,1}, x::Array{Date,1}, degree::Int; intercept::Bool = true, dim_name::Symbol = default_symbol, base_date::Date = global_base_date) where T<:Real
+    return  create_ols_approximation(y, convert.(Ref(T), years_from_global_base.(x)), degree; intercept = intercept, dim_name = dim_name, base_x = convert.(Ref(T), years_from_global_base(base_date)))
 end

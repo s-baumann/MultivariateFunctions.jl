@@ -32,7 +32,7 @@ This generates a function representing the derivative of function f. The derivat
 that specified by the derivs dict. So if derivs is Dict{[:x,:y] .=> [1,2]} then there
 will be one derivative with respect to x and 2 with respect to y.
 """
-function derivative(f::PE_Function, derivs::Dict{Symbol,Int})
+function derivative(f::PE_Function, derivs::Union{Dict{Symbol,Integer},Dict{Symbol,II}}) where II<:Integer
     # Should always return a Sum_Of_Functions or a PE_Function.
     dims = keys(derivs)
     fdims = keys(f.units_)
@@ -69,13 +69,13 @@ function derivative(f::PE_Function, derivs::Dict{Symbol,Int})
         return Sum_Of_Functions(final_result)
     end
 end
-function derivative(f::Sum_Of_Functions, derivs::Dict{Symbol,Int})
+function derivative(f::Sum_Of_Functions, derivs::Union{Dict{Symbol,Integer},Dict{Symbol,II}}) where II<:Integer
     # Should always return a Sum_Of_Functions or a PE_Function.
     deriv_funcs = derivative.(f.functions_, Ref(derivs))
     return Sum_Of_Functions(deriv_funcs)
 end
 
-function derivative(f::Piecewise_Function, derivs::Dict{Symbol,Int})
+function derivative(f::Piecewise_Function, derivs::Union{Dict{Symbol,Integer},Dict{Symbol,II}}) where II<:Integer
     max_order = maximum(values(derivs))
     if max_order > 0
         derivatives = derivative.(f.functions_, Ref(derivs))
@@ -87,11 +87,11 @@ function derivative(f::Piecewise_Function, derivs::Dict{Symbol,Int})
     end
 end
 
-function derivative(f::Sum_Of_Piecewise_Functions, derivs::Dict{Symbol,Int})
+function derivative(f::Sum_Of_Piecewise_Functions, derivs::Union{Dict{Symbol,Integer},Dict{Symbol,II}}) where II<:Integer
     return derivative(f.global_funcs_, derivs) + sum(derivative.(f.functions_, Ref(derivs)))
 end
 
-function derivative(f::Missing, derivs::Dict{Symbol,Int})
+function derivative(f::Missing, derivs::Union{Dict{Symbol,Integer},Dict{Symbol,II}}) where II<:Integer
     return Missing()
 end
 
@@ -104,7 +104,7 @@ function derivative(f::MultivariateFunction)
     end
 end
 
-function add_to_dict(dic::Dict{Symbol,Int}, new_symbol::Symbol)
+function add_to_dict(dic::Union{Dict{Symbol,II},Dict{Symbol,Integer}}, new_symbol::Symbol) where II<:Integer
     dd = deepcopy(dic)
     if new_symbol in keys(dd)
         dd[new_symbol] = 1 + dd[new_symbol]
@@ -120,7 +120,7 @@ end
      all_derivatives(f::MultivariateFunction, degree::Int = 2, dimensions::Set{Symbol} = underlying_dimensions(f))
 This generates a dict containing functions representing all of the deriviates of a function up to the order of degree.
 """
-function all_derivatives(f::MultivariateFunction, degree::Int = 2, dimensions::Set{Symbol} = underlying_dimensions(f))
+function all_derivatives(f::MultivariateFunction, degree::Integer = 2, dimensions::Set{Symbol} = underlying_dimensions(f))
     if typeof(f) == MultivariateFunctions.Piecewise_Function
         derivs = Dict{Dict{Symbol,Int},typeof(f)}()
     else
@@ -181,13 +181,13 @@ struct Hessian
 end
 
 """
-    evaluate(hess::Hessian, coordinates::Dict{Symbol,Float64})
+    evaluate(hess::Hessian, coordinates::Dict{Symbol,T}) where T<:Real
 This evaluates a Hessian object to create a Symmetric matrix representing the hessian
 at a point.
 """
-function evaluate(hess::Hessian, coordinates::Dict{Symbol,Float64})
+function evaluate(hess::Hessian, coordinates::Dict{Symbol,T}) where T<:Real
     len = length(hess.labels_)
-    second_derivs = Array{Float64,2}(undef,len,len)
+    second_derivs = Array{T,2}(undef,len,len)
     for c in 1:len
         for r in c:len
             lookup_dict = Dict{Symbol,Int}([hess.labels_[r],hess.labels_[c]] .=> [1,1])
@@ -200,13 +200,13 @@ function evaluate(hess::Hessian, coordinates::Dict{Symbol,Float64})
 end
 
 """
-    find_local_optima(func::MultivariateFunction, initial_guess::Dict{Symbol,Float64}; step_size::Float64 = 1.0, max_iters::Int = 40, convergence_tol::Float64 = 1e-10, print_reports::Bool = false)
+    find_local_optima(func::MultivariateFunction, initial_guess::Dict{Symbol,T}; step_size::Real = 1.0, max_iters::Int = 40, convergence_tol::Real = 1e-10, print_reports::Bool = false) where T<:Real
 This takes the analytical jacobian and hessian of a function and uses them to find a nearby
 optima. The optima it will find are based on Newton's method. There is no way to specify whether
 a minimum or a maximum is sought in Newton's method (at least the pure version of it) and thus
 this function cannot selectively search for a maximum or minimum. It simply searches for a stationary point.
 """
-function find_local_optima(func::MultivariateFunction, initial_guess::Dict{Symbol,Float64}; step_size::Float64 = 1.0, max_iters::Int = 40, convergence_tol::Float64 = 1e-10, print_reports::Bool = false)
+function find_local_optima(func::MultivariateFunction, initial_guess::Dict{Symbol,T}; step_size::Real = 1.0, max_iters::Int = 40, convergence_tol::Real = 1e-10, print_reports::Bool = false) where T<:Real
     dimensions = collect(keys(initial_guess))
     dimensions_without_guess = setdiff(underlying_dimensions(func), Set(dimensions))
     if length(dimensions_without_guess) > 0
@@ -244,11 +244,11 @@ function find_local_optima(func::MultivariateFunction, initial_guess::Dict{Symbo
 end
 
 """
-    uniroot(f::MultivariateFunction, initial_guess::Dict{Symbol,Float64}; step_size::Float64 = 1.0, max_iters::Int = 40, convergence_tol::Float64 = 1e-10, print_reports::Bool = false)
+    uniroot(f::MultivariateFunction, initial_guess::Dict{Symbol,T}; step_size::Real = 1.0, max_iters::Int = 40, convergence_tol::Real = 1e-10, print_reports::Bool = false) where T<:Real
 This takes the analytical jacobian and hessian of a function and uses them to find a nearby
 root. It finds a root using Newton's method.
 """
-function uniroot(f::MultivariateFunction, initial_guess::Dict{Symbol,Float64}; step_size::Float64 = 1.0, max_iters::Int = 40, convergence_tol::Float64 = 1e-10, print_reports::Bool = false)
+function uniroot(f::MultivariateFunction, initial_guess::Dict{Symbol,T}; step_size::Real = 1.0, max_iters::Int = 40, convergence_tol::Real = 1e-10, print_reports::Bool = false) where T<:Real
     dimensions = collect(keys(initial_guess))
     dimensions_without_guess = setdiff(underlying_dimensions(f), Set(dimensions))
     if length(dimensions_without_guess) > 0
@@ -286,8 +286,8 @@ end
 
 
 ## Integration
-function indefinite_integral(u::PE_Unit, incoming_multiplier::Float64 = 1.0)# Intentially changing name so this is not exported.
-    result_array = Array{Tuple{Float64,PE_Unit}}(undef,1)
+function indefinite_integral(u::PE_Unit, incoming_multiplier::Real = 1.0)# Intentially changing name so this is not exported.
+    result_array = Array{Tuple{Real,PE_Unit}}(undef,1)
     if u.b_ ≂ 0.0
         result_array[1] = (incoming_multiplier/(u.d_+1), PE_Unit(u.b_, u.base_, u.d_+1)) # Note (u.d_+1) > 0 because u.d_ \geq 0
         return result_array
@@ -303,25 +303,25 @@ function indefinite_integral(u::PE_Unit, incoming_multiplier::Float64 = 1.0)# In
     end
 end
 
-function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Symbol, right::Symbol)# Intentially changing name so this is not exported.
+function apply_limits(mult::Real, indef::Array{Tuple{Real,PE_Unit}}, left::Symbol, right::Symbol)# Intentially changing name so this is not exported.
     converted = (collect(Iterators.product(((indef,))...))...,)
     rights = [Dict{Symbol,Tuple{Float64,PE_Unit}}([right] .=> val) for val in converted]
     lefts  = [Dict{Symbol,Tuple{Float64,PE_Unit}}([left] .=> val) for val in converted]
     return Sum_Of_Functions(PE_Function.(mult, rights)) - Sum_Of_Functions(PE_Function.(mult, lefts))
 end
-function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Float64, right::Symbol)# Intentially changing name so this is not exported.
+function apply_limits(mult::Real, indef::Array{Tuple{Real,PE_Unit}}, left::Real, right::Symbol)# Intentially changing name so this is not exported.
     converted = (collect(Iterators.product(((indef,))...))...,)
     rights = [Dict{Symbol,Tuple{Float64,PE_Unit}}([right] .=> val) for val in converted]
     lefts  = [Dict{Symbol,Tuple{Float64,PE_Unit}}([:left] .=> val) for val in converted]
     return Sum_Of_Functions(PE_Function.(mult, rights)) - sum(evaluate.(PE_Function.(mult, lefts), Ref(Dict{Symbol,Float64}(:left => left))))
 end
-function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Symbol, right::Float64)# Intentially changing name so this is not exported.
+function apply_limits(mult::Real, indef::Array{Tuple{Real,PE_Unit}}, left::Symbol, right::Real)# Intentially changing name so this is not exported.
     converted = (collect(Iterators.product(((indef,))...))...,)
     rights = [Dict{Symbol,Tuple{Float64,PE_Unit}}([:right] .=> val) for val in converted]
     lefts  = [Dict{Symbol,Tuple{Float64,PE_Unit}}([left] .=> val) for val in converted]
     return evaluate.(Sum_Of_Functions(PE_Function.(mult, rights)), Ref(Dict{Symbol,Float64}(:right => right))   ) - Sum_Of_Functions(PE_Function.(mult, lefts))
 end
-function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Float64, right::Float64)# Intentially changing name so this is not exported.
+function apply_limits(mult::Real, indef::Array{Tuple{Real,PE_Unit}}, left::Real, right::Real)# Intentially changing name so this is not exported.
     converted = (collect(Iterators.product(((indef,))...))...,)
     converted_again = [Dict{Symbol,Tuple{Float64,PE_Unit}}([default_symbol] .=> val) for val in converted]
     funcs = Sum_Of_Functions(PE_Function.(mult, converted_again))
@@ -347,7 +347,7 @@ function integral(f::PE_Function, limits::IntegrationLimitDict)
         return volume_of_cube * f.multiplier_
     end
     units = deepcopy(f.units_)
-    result_by_dimension = Array{Union{Float64,Sum_Of_Functions,PE_Function},1}()
+    result_by_dimension = Array{Union{Real,Sum_Of_Functions,PE_Function},1}()
     for dimen in keys(limits)
         left_  = limits[dimen][1]
         right_ = limits[dimen][2]
@@ -384,8 +384,8 @@ This gives a function representing the integral of a function, f, with limits in
 contain a tuple for each variable in the function. The left member of the tuple contains the lower limit
 and the right member the upper limite. Each must be a Float64 (Support for inputting a symbol is planned but not yet implemented).
 """
-function hypercubes_to_integrate(f::Piecewise_Function, lims::Dict{Symbol,Tuple{Float64,Float64}})
-    limits = Dict{Symbol,Tuple{Float64,Float64}}()
+function hypercubes_to_integrate(f::Piecewise_Function, lims::Dict{Symbol,Tuple{T,T}}) where T<:Real
+    limits = Dict{Symbol,Tuple{T,T}}()
     for kk in keys(f.thresholds_)
         limits[kk] = lims[kk]
     end
@@ -421,7 +421,7 @@ function hypercubes_to_integrate(f::Piecewise_Function, lims::Dict{Symbol,Tuple{
     return new_cubes
 end
 
-function integral(f::Piecewise_Function, limits::Dict{Symbol,Tuple{Float64,Float64}})
+function integral(f::Piecewise_Function, limits::Dict{Symbol,Tuple{T,T}}) where T<:Real
     cubes_to_integrate = hypercubes_to_integrate(f, limits)
     ints = Array{Any,1}(undef,length(cubes_to_integrate))
     for i in 1:length(ints)
@@ -431,16 +431,17 @@ function integral(f::Piecewise_Function, limits::Dict{Symbol,Tuple{Float64,Float
     return sum(ints)
 end
 
-function integral(f::Sum_Of_Piecewise_Functions, limits::Dict{Symbol,Tuple{Float64,Float64}})
+function integral(f::Sum_Of_Piecewise_Functions, limits::Dict{Symbol,Tuple{T,T}}) where T<:Real
     return integral(f.global_funcs_, limits) + sum(integral.(f.functions_, Ref(limits)))
 end
 
-function integral(f::MultivariateFunction, left_limit::Float64, right_limit::Float64)
+function integral(f::MultivariateFunction, left_limit::T, right_limit::R) where T<:Real where R<:Real
     underlyingDims = underlying_dimensions(f)
     if length(underlyingDims) == 0
         return f.multiplier_ * (right_limit-left_limit)
     elseif underlyingDims == Set([default_symbol])
-        limits_ = Dict{Symbol,Tuple{Float64,Float64}}(default_symbol => Tuple{Float64,Float64}((left_limit,right_limit)))
+        S = typeof(f).parameters[1]
+        limits_ = Dict{Symbol,Tuple{Float64,Float64}}(default_symbol => Tuple{S,S}((left_limit,right_limit)))
         return integral(f, limits_)
     else
         error("Cannot evaluate the integral of a Multivariate function without a dictionary set of coordinates unless it is a MultivariateFunction with only the default dimension being used.")

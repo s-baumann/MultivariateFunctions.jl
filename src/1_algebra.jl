@@ -1,11 +1,13 @@
 import Base.+, Base.-, Base./, Base.*, Base.^
 
 # PE_Units
-function change_base_(u::PE_Unit, new_base::Float64) # Intentially changing name so this is not exported.
+function change_base_(u::PE_Unit{T}, new_base::R) where T<:Real where R<:Real
+    new_baseT = convert(T, new_base)
+    # Intentially changing name so this is not exported.
     old_base = u.base_
-    diff = new_base - old_base
+    diff = new_baseT - old_base
     if diff  ≂ 0.0
-        return Array{Tuple{Float64,PE_Unit},1}([(1.0, u)])
+        return Array{Tuple{T,PE_Unit{T}},1}([(1.0, u)])
     end
     # First the exponential part.
     mult = exp(u.b_*diff)
@@ -14,15 +16,15 @@ function change_base_(u::PE_Unit, new_base::Float64) # Intentially changing name
     end
     # Now the polynomial part.
     if u.d_ == 0
-        new_unit = PE_Unit(u.b_, new_base, 0)
-        return Array{Tuple{Float64,PE_Unit},1}([(mult, new_unit)])
+        new_unit = PE_Unit(u.b_, new_baseT, 0)
+        return Array{Tuple{T,PE_Unit{T}},1}([(mult, new_unit)])
     else
         n = u.d_
-        funcs = Array{Tuple{Float64,PE_Unit},1}(undef,n+1)
+        funcs = Array{Tuple{T,PE_Unit{T}},1}(undef,n+1)
         for r in 0:n
             binom_coeff = factorial(n) / (factorial(r) * factorial(n-r))
             new_multiplier = binom_coeff * mult * diff^r
-            new_unit = PE_Unit(u.b_, new_base, n-r)
+            new_unit = PE_Unit(u.b_, new_baseT, n-r)
             new_func = (new_multiplier, new_unit)
             funcs[r+1] = new_func
         end
@@ -36,12 +38,13 @@ This function changes the bases in the PE_Units of a PE_Function. This is useful
 PE_Functions comformable for simpler multiplication. Often a base change means that an array of
 PE_Functions are needed to represent a function. So an Array{PE_Function,1} is returned.
 """
-function change_base(f::PE_Function, new_bases::Dict{Symbol,Float64})
-    dims_dict = Dict{Symbol,Array{Tuple{Float64,PE_Unit},1}}()
+function change_base(f::PE_Function{T}, new_bases::Dict{Symbol,R}) where T<:Real where R<:Real
+    new_basesT = convert(Dict{Symbol,T}, new_bases)
+    dims_dict = Dict{Symbol,Array{Tuple{T,PE_Unit{T}},1}}()
     dims = keys(f.units_)
     for dim in dims
-        if haskey(new_bases, dim)
-            desired_base = new_bases[dim]
+        if haskey(new_basesT, dim)
+            desired_base = new_basesT[dim]
             f_unit = f.units_[dim]
             f_base = f_unit.base_
             changed_pes = change_base_(f_unit, desired_base)
@@ -50,7 +53,7 @@ function change_base(f::PE_Function, new_bases::Dict{Symbol,Float64})
             dims_dict[dim] = [(1.0,f.units_[dim])]
         end
     end
-    array_of_tups = [Dict{Symbol,Tuple{Float64,PE_Unit}}(dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),dims)...))...,)]
+    array_of_tups = [Dict{Symbol,Tuple{T,PE_Unit{T}}}(dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),dims)...))...,)]
     array_of_pes = PE_Function.(f.multiplier_, array_of_tups)
     return array_of_pes
 end
@@ -65,71 +68,47 @@ end
 
 # PE_Functions
 """
-   +(f::MultivariateFunction,number::Float64)
-   +(f::MultivariateFunction,number::Int)
-
+   +(f::MultivariateFunction,number::Real)
    A Multivariate Function can be added to an scalar to from a new MultivariateFunction. This action promotes a
    PE_Function to a Sum_Of_Functions. The type of all other MultivariateFunctions is unchanged.
 """
-function +(f::PE_Function,number::Float64)
+function +(f::PE_Function{R},number::Real) where R<:Real
     constant_function = PE_Function(number, 0.0,0.0,0)
-    return Sum_Of_Functions([f, constant_function])
+    return Sum_Of_Functions(convert(Array{PE_Function{R},1}, [f, constant_function]))
 end
 """
-   -(f::MultivariateFunction,number::Float64)
-   -(f::MultivariateFunction,number::Int)
-
+   -(f::MultivariateFunction,number::Real)
    A scalar can be subtracted from a Multivariate Function. This action promotes a
    PE_Function to a Sum_Of_Functions. The type of all other MultivariateFunctions is unchanged.
 """
-function -(f::PE_Function, number::Float64)
+function -(f::PE_Function, number::Real)
     return +(f, -number)
 end
 """
-   *(f::MultivariateFunction,number::Float64)
-   *(f::MultivariateFunction,number::Int)
-
+   *(f::MultivariateFunction,number::Real)
    A Multivariate can be multiplied by a scalar. This does not change the type of any MultivariateFunction.
 """
-function *(f::PE_Function, number::Float64)
-    return PE_Function(f.multiplier_*number, f.units_)
+function *(f::PE_Function, number::Real)
+    return PE_Function(f.multiplier_ * number, f.units_)
 end
 """
-   /(f::MultivariateFunction,number::Float64)
-   /(f::MultivariateFunction,number::Int)
-
+   /(f::MultivariateFunction,number::Real)
    A Multivariate can be divided by a scalar. This does not change the type of any MultivariateFunction.
    Note that the opposite operation cannot be done. While f / 5 is permitted 5 / f is not supported by this package.
    It is not possible to divide by a function.
 """
-function /(f::PE_Function, number::Float64)
-    return *(f, 1/number )
+function /(f::PE_Function, number::Real)
+    return *(f, 1/number)
 end
 
-function +(f::PE_Function, number::Int)
-    number_as_float = convert(Float64, number)
-    return +(f, number_as_float)
-end
-function -(f::PE_Function, number::Int)
-    number_as_float = convert(Float64, number)
-    return -(f, number_as_float)
-end
-function *(f::PE_Function, number::Int)
-    number_as_float = convert(Float64, number)
-    return *(f, number_as_float)
-end
-function /(f::PE_Function, number::Int)
-    number_as_float = convert(Float64, number)
-    return /(f, number_as_float)
-end
 """
-   ^(f::MultivariateFunction,number::Int)
+   ^(f::MultivariateFunction,number::Integer)
 
    A Multivariate can be raised by a positive Integer power. This will generally promote a PE_Function to a Sum_Of_Functions.
    Note that the opposite operation cannot be done. While f ^ 5 is permitted 5 ^ f is not supported by this package.
    It is not possible to raise by the power of a function.
 """
-function ^(f::PE_Function, number::Int)
+function ^(f::PE_Function, number::Integer)
     if number < 0
         error("Negative powers are not supported.")
     elseif number == 0
@@ -144,18 +123,17 @@ function ^(f::PE_Function, number::Int)
         return val
     end
 end
-function ^(f::PE_Function, number::Float64)
-    error("Cannot raise a PE_Function to a float value.")
-end
 """
     +(f1::MultivariateFunction, f2::MultivariateFunction)
     Any two multivariate Functions can be added to form a MultivariateFunction reflecting the sum.
 """
-function +(f1::PE_Function, f2::PE_Function)
-    return Sum_Of_Functions([f1,f2])
+function +(f1::PE_Function{T}, f2::PE_Function{R}) where T<:Real where R<:Real
+    promo_type = promote_type(T,R)
+    return Sum_Of_Functions(convert(Array{PE_Function{promo_type},1}, [f1, f2]))
 end
-function +(f1::PE_Function, f2::Sum_Of_Functions)
-    return Sum_Of_Functions([f1,f2])
+function +(f1::PE_Function{T}, f2::Sum_Of_Functions{R}) where T<:Real where R<:Real
+    promo_type = promote_type(T,R)
+    return Sum_Of_Functions(convert(Array{PE_Function{promo_type},1}, [f1,f2.functions_...]))
 end
 function +(f1::PE_Function, f2::Piecewise_Function)
     return Piecewise_Function(f1 .+ f2.functions_, f2.thresholds_)
@@ -230,7 +208,7 @@ function *(f1::PE_Function,f2::PE_Function)
     end
 end
 
-function *(f1::PE_Function, f2::Sum_Of_Functions)
+function *(f1::PE_Function{T}, f2::Sum_Of_Functions{R}) where T<:Real where R<:Real
     multiplied_functions = f1 .* f2.functions_
     return Sum_Of_Functions(multiplied_functions)
 end
@@ -253,41 +231,25 @@ end
 
 # Sum of Functions
 
-function +(f::Sum_Of_Functions,number::Float64)
-    constant_function = PE_Function(number)
-    return Sum_Of_Functions(vcat(f.functions_, [constant_function]))
+function +(f::Sum_Of_Functions{T},number::Real) where T<:Real
+    constant_function = PE_Function(convert(T,number))
+    return Sum_Of_Functions(convert(Array{PE_Function{T},1}, vcat([constant_function], f.functions_)))
 end
-function -(f::Sum_Of_Functions, number::Float64)
+function -(f::Sum_Of_Functions{T}, number::Real) where T<:Real
     return +(f, -number)
 end
-function *(f::Sum_Of_Functions, number::Float64)
+function *(f::Sum_Of_Functions{T}, number::Real) where T<:Real
     funcs = deepcopy(f.functions_)
     for i in 1:length(funcs)
         funcs[i] = funcs[i] * number
     end
-    return Sum_Of_Functions(funcs)
+    return Sum_Of_Functions(convert(Array{PE_Function{T},1}, funcs))
 end
-function /(f::Sum_Of_Functions, number::Float64)
+function /(f::Sum_Of_Functions, number::Real)
     return *(f, 1/number )
 end
 
-function +(f::Sum_Of_Functions, number::Int)
-    number_as_float = convert(Float64, number)
-    return +(f, number_as_float)
-end
-function -(f::Sum_Of_Functions, number::Int)
-    number_as_float = convert(Float64, number)
-    return -(f, number_as_float)
-end
-function *(f::Sum_Of_Functions, number::Int)
-    number_as_float = convert(Float64, number)
-    return *(f, number_as_float)
-end
-function /(f::Sum_Of_Functions, number::Int)
-    number_as_float = convert(Float64, number)
-    return /(f, number_as_float)
-end
-function ^(f::MultivariateFunction, number::Int)
+function ^(f::MultivariateFunction, number::Integer)
     if number < 0
         error("Negative powers are not supported.")
     elseif number == 0
@@ -302,12 +264,13 @@ function ^(f::MultivariateFunction, number::Int)
         return val
     end
 end
-function ^(f::Sum_Of_Functions, number::Float64)
-    error("Cannot raise a Sum_Of_Functions to a float value.")
+function ^(f::MultivariateFunction, number::Real)
+    error("Cannot raise a Sum_Of_Functions to an arbitrary real value. Only raising by positive integers is supported.")
 end
 
 function +(f1::Sum_Of_Functions, f2::Sum_Of_Functions)
-    return Sum_Of_Functions([f1,f2])
+    promo_type = promote_type(typeof(f1).parameters[1], typeof(f2).parameters[1])
+    return Sum_Of_Functions(convert(Array{Sum_Of_Functions{promo_type},1}, [f1,f2]))
 end
 function +(f1::Sum_Of_Functions, f2::Piecewise_Function)
     funcs = deepcopy(f2.functions_)
@@ -328,7 +291,8 @@ end
 
 
 function -(f1::Sum_Of_Functions, f2::Sum_Of_Functions)
-    return Sum_Of_Functions([f1,-1*f2])
+    promo_type = promote_type(typeof(f1).parameters[1], typeof(f2).parameters[1])
+    return Sum_Of_Functions(convert(Array{Sum_Of_Functions{promo_type},1}, [f1,-1*f2]))
 end
 function -(f1::Sum_Of_Functions, f2::Piecewise_Function)
     return +(f1, -1 * f2)
@@ -345,7 +309,7 @@ function -(f1::Sum_Of_Piecewise_Functions, f2::Sum_Of_Functions)
 end
 
 function *(f1::Sum_Of_Functions,f2::Sum_Of_Functions)
-    results = Array{Sum_Of_Functions}(undef, length(f1.functions_))
+    results = Array{Sum_Of_Functions,1}(undef, length(f1.functions_))
     for i in 1:length(f1.functions_)
         new_funcs = f1.functions_[i] * f2
         results[i] = new_funcs
@@ -380,35 +344,19 @@ end
 
 # Piecewise Functions
 
-function +(f::Piecewise_Function,number::Float64)
-    functions_with_addition = f.functions_ .+ number
+function +(f::Piecewise_Function{T},number::Real) where T<:Real
+    functions_with_addition = convert(Array{Union{Missing,Sum_Of_Functions{T}}}, f.functions_ .+ number)
     return Piecewise_Function(functions_with_addition, f.thresholds_)
 end
-function -(f::Piecewise_Function,number::Float64)
+function -(f::Piecewise_Function{T},number::Real) where T<:Real
     return +(f,-1.0*number)
 end
-function *(f::Piecewise_Function,number::Float64)
-    functions_with_multiplication = f.functions_ .* number
+function *(f::Piecewise_Function{T},number::Real) where T<:Real
+    functions_with_multiplication = convert(Array{Union{Missing,Sum_Of_Functions{T}}}, f.functions_ .* number)
     return Piecewise_Function(functions_with_multiplication, f.thresholds_)
 end
-function /(f::Piecewise_Function,number::Float64)
+function /(f::Piecewise_Function{T},number::Real) where T<:Real
     return *(f, 1.0/number)
-end
-function +(f::Piecewise_Function,number::Int)
-    number_as_float = convert(Float64, number)
-    return +(f,number_as_float)
-end
-function -(f::Piecewise_Function,number::Int)
-    number_as_float = convert(Float64, number)
-    return -(f,number_as_float)
-end
-function *(f::Piecewise_Function,number::Int)
-    number_as_float = convert(Float64, number)
-    return *(f,number_as_float)
-end
-function /(f::Piecewise_Function,number::Int)
-    number_as_float = convert(Float64, number)
-    return /(f,number_as_float)
 end
 
 function +(f1::Piecewise_Function,f2::Piecewise_Function)
@@ -447,36 +395,18 @@ function *(f1::Sum_Of_Piecewise_Functions,f2::Piecewise_Function)
 end
 
 # Sum of Piecewise Functions
-function +(f::Sum_Of_Piecewise_Functions,number::Float64)
+function +(f::Sum_Of_Piecewise_Functions,number::Real)
     return Sum_Of_Piecewise_Functions(f.functions_, f.global_funcs_ + number )
 end
-function -(f::Sum_Of_Piecewise_Functions,number::Float64)
+function -(f::Sum_Of_Piecewise_Functions,number::Real)
     return +(f,-1.0*number)
 end
-function *(f::Sum_Of_Piecewise_Functions,number::Float64)
+function *(f::Sum_Of_Piecewise_Functions,number::Real)
     return Sum_Of_Piecewise_Functions(number .* f.functions_, number * f.global_funcs_)
 end
-function /(f::Sum_Of_Piecewise_Functions,number::Float64)
+function /(f::Sum_Of_Piecewise_Functions,number::Real)
     return *(f, 1.0/number)
 end
-function +(f::Sum_Of_Piecewise_Functions,number::Int)
-    number_as_float = convert(Float64, number)
-    return +(f,number_as_float)
-end
-function -(f::Sum_Of_Piecewise_Functions,number::Int)
-    number_as_float = convert(Float64, number)
-    return -(f,number_as_float)
-end
-function *(f::Sum_Of_Piecewise_Functions,number::Int)
-    number_as_float = convert(Float64, number)
-    return *(f,number_as_float)
-end
-function /(f::Sum_Of_Piecewise_Functions,number::Int)
-    number_as_float = convert(Float64, number)
-    return /(f,number_as_float)
-end
-
-
 
 function +(f1::Sum_Of_Piecewise_Functions,f2::Sum_Of_Piecewise_Functions)
     return Sum_Of_Piecewise_Functions(vcat(f1.functions_, f2.functions_), f1.global_funcs_ + f2.global_funcs_)
@@ -508,7 +438,6 @@ end
 function -(f1::MultivariateFunction,f2::Missing)
     return f2
 end
-
 function *(f1::MultivariateFunction,f2::Missing)
     return f2
 end
@@ -516,20 +445,19 @@ end
 
 
 # All
-
-function +(number::Union{Int,Float64}, f::MultivariateFunction)
+function +(number::Real, f::MultivariateFunction)
     return f + number
 end
-function -(number::Union{Int,Float64}, f::MultivariateFunction)
+function -(number::Real, f::MultivariateFunction)
     return +(number,-1*f)
 end
-function *(number::Union{Int,Float64}, f::MultivariateFunction)
+function *(number::Real, f::MultivariateFunction)
     return f * number
 end
-function /(number::Union{Int,Float64}, f::MultivariateFunction)
+function /(number::Real, f::MultivariateFunction)
     error("This package doesn't support dividing by a function.")
 end
-function ^(number::Union{Int,Float64}, f::MultivariateFunction)
+function ^(number::Real, f::MultivariateFunction)
     error("This package doesn't support raising to the power of a function.")
 end
 
@@ -545,7 +473,7 @@ end
 
 
 ###
-function convert_to_linearly_rescale_inputs(f::PE_Unit, alpha::Float64, beta::Float64)
+function convert_to_linearly_rescale_inputs(f::PE_Unit, alpha::Real, beta::Real)
     # We want the change the function so that whenever we put in x it is like we put in alpha x + beta.
     beta = beta / alpha
     alpha = 1.0/alpha
@@ -554,15 +482,15 @@ function convert_to_linearly_rescale_inputs(f::PE_Unit, alpha::Float64, beta::Fl
     new_power_ = f.b_ * alpha
     return new_multiplier, PE_Unit(new_power_, new_base_, f.d_)
 end
-function convert_to_linearly_rescale_inputs(f::Missing, alpha_beta::Dict{Symbol,Tuple{Float64,Float64}})
+function convert_to_linearly_rescale_inputs(f::Missing, alpha_beta::Union{Dict{Symbol,Tuple{T,T}},Dict{Symbol,Tuple}}) where T<:Real
     return f
 end
-function convert_to_linearly_rescale_inputs(f::PE_Function, alpha_beta::Dict{Symbol,Tuple{Float64,Float64}})
+function convert_to_linearly_rescale_inputs(f::PE_Function{R}, alpha_beta::Union{Dict{Symbol,Tuple{T,T}},Dict{Symbol,Tuple}}) where T<:Real where R<:Real
     if length(f.units_) == 0
         return f
     end
     mult = f.multiplier_
-    final_units = Dict{Symbol,PE_Unit}()
+    final_units = Dict{Symbol,PE_Unit{R}}()
     for dd in setdiff(keys(f.units_), keys(alpha_beta))
         final_units[dd] = f.units_[dd]
     end
@@ -573,12 +501,16 @@ function convert_to_linearly_rescale_inputs(f::PE_Function, alpha_beta::Dict{Sym
     end
     return PE_Function(mult, final_units)
 end
-function convert_to_linearly_rescale_inputs(f::Sum_Of_Functions, alpha_beta::Dict{Symbol,Tuple{Float64,Float64}})
+function convert_to_linearly_rescale_inputs(f::Sum_Of_Functions{R}, alpha_beta::Union{Dict{Symbol,Tuple{T,T}},Dict{Symbol,Tuple}}) where T<:Real where R<:Real
+    if length(f.functions_) == 0
+        return f
+    end
     funcs = convert_to_linearly_rescale_inputs.(f.functions_, Ref(alpha_beta))
-    return Sum_Of_Functions(funcs)
+    return Sum_Of_Functions(convert(Array{PE_Function{R},1}, funcs))
 end
-function convert_to_linearly_rescale_inputs(f::Piecewise_Function, alpha_beta::Dict{Symbol,Tuple{Float64,Float64}})
-    new_thresholds = OrderedDict{Symbol,Array{Float64,1}}()
+function convert_to_linearly_rescale_inputs(f::Piecewise_Function, alpha_beta::Union{Dict{Symbol,Tuple{T,T}},Dict{Symbol,Tuple}}) where T<:Real
+    R = typeof(f).parameters[1]
+    new_thresholds = OrderedDict{Symbol,Array{R,1}}()
     for k in keys(f.thresholds_)
         alpha = alpha_beta[k][1]
         beta  = alpha_beta[k][2]
@@ -588,7 +520,8 @@ function convert_to_linearly_rescale_inputs(f::Piecewise_Function, alpha_beta::D
     return Piecewise_Function(funcs_, new_thresholds)
 end
 
-function convert_to_linearly_rescale_inputs(f::MultivariateFunction, alpha::Float64, beta::Float64)
-    alpha_beta= Dict{Symbol,Tuple{Float64,Float64}}(default_symbol => (alpha,beta))
+function convert_to_linearly_rescale_inputs(f::MultivariateFunction, alpha::T, beta::R) where T<:Real where R<:Real
+    promo_type = promote_type(T,R)
+    alpha_beta= Dict{Symbol,Tuple{promo_type,promo_type}}(default_symbol => (alpha,beta))
     return convert_to_linearly_rescale_inputs(f, alpha_beta)
 end
