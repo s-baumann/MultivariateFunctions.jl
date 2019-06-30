@@ -34,7 +34,7 @@ mSumFunction3 = Sum_Of_Functions([mSumFunction1, mSumFunction2])
 coordinates = Dict([:x, :y, :z] .=> [0.5, 2.0, 3.0])
 
 # Conversion
-isa(convert(MultivariateFunctions.Sum_Of_Functions, mfun1), MultivariateFunctions.Sum_Of_Functions)
+typeof(convert(MultivariateFunctions.Sum_Of_Functions, mfun1)) == MultivariateFunctions.Sum_Of_Functions
 
 function test_result(func, eval_to)
     return abs(evaluate(func, coordinates) - eval_to) < 1e-05

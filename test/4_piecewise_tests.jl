@@ -65,7 +65,7 @@ typeof(Missing() - f4) == Missing
 typeof(f4 * Missing()) == Missing
 typeof(Missing() * f4) == Missing
 
-isa(-1*f4, MultivariateFunctions.Piecewise_Function)
+typeof(-1*f4) == MultivariateFunctions.Piecewise_Function
 
 test_result(f1 + first_, 0.0, 505.0, 4)
 test_result(first_ + f1, 0.0, 505.0, 4)

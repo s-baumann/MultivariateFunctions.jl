@@ -1,6 +1,6 @@
 
 
-function evaluate_function_at_nodes(func::Function, unnormalised_nodes::Union{Array{Real,1},Array{S,1}}, limits::Union{OrderedDict{Symbol,Tuple{Real,Real}},OrderedDict{Symbol,Tuple{R,R}}}, function_takes_Dict::Bool) where R<:Real where S<:Real
+function evaluate_function_at_nodes(func::Function, unnormalised_nodes::Array{Float64,1}, limits::OrderedDict{Symbol,Tuple{Float64,Float64}}, function_takes_Dict::Bool)
     nodes = length(unnormalised_nodes)
     dimensions = length(limits)
     labels = collect(keys(limits))
@@ -33,7 +33,7 @@ end
 # the outer product will be symmetric.
 # At some stage it would be good to make better use of symmetry. Come back to this
 # wehn the tensor
-function expand_array(arr::Array{T}, vecc::Array{R,1})  where T  where R
+function expand_array(arr::Array{T} where T, vecc::Array{T,1} where T)
     sze = size(arr)
     dim = length(sze)
     new_arr = Array{typeof(vecc[1]),dim + 1}(undef, vcat(sze..., sze[1])...)
@@ -42,7 +42,7 @@ function expand_array(arr::Array{T}, vecc::Array{R,1})  where T  where R
     end
     return new_arr
 end
-function tensor_outer_product(arr::Array{T,2}) where T
+function tensor_outer_product(arr::Array{T,2} where T)
     dim = size(arr)[2]
     if dim == 1
         return Array{typeof(arr[1,1]),1}(arr[:,1])
@@ -54,7 +54,7 @@ function tensor_outer_product(arr::Array{T,2}) where T
     return big_array
 end
 
-function get_cholesky_coefficients(evaluated_chebyshevs_on_sum_squared::Union{Array{Real,2},Array{R,2}}, y::Union{Array{S},Array{Real}}) where R<:Real where S<:Real
+function get_cholesky_coefficients(evaluated_chebyshevs_on_sum_squared::Array{Float64,2}, y::Array{Float64})
     degree = size(evaluated_chebyshevs_on_sum_squared)[2]
     nodes = size(evaluated_chebyshevs_on_sum_squared)[1]
     dimensions = length(size(y))
@@ -79,7 +79,7 @@ function get_cholesky_coefficients(evaluated_chebyshevs_on_sum_squared::Union{Ar
     return coefficients
 end
 
-function convert_chebyshevs(chebyshevs::Array{Sum_Of_Functions,1}, limits::Union{OrderedDict{Symbol,Tuple{Real,Real}},OrderedDict{Symbol,Tuple{R,R}}}) where R<:Real
+function convert_chebyshevs(chebyshevs::Array{Sum_Of_Functions,1}, limits::OrderedDict{Symbol,Tuple{Float64,Float64}})
     dimensions = length(limits)
     degree = length(chebyshevs)
     ks     = collect(keys(limits))
@@ -103,13 +103,10 @@ function is to be evaluated for approximation purposes in each dimension. The li
 If function_takes_Dict is true then the function will be evaluated by inputting a  Dict{Symbol,Float64}. Otherwise the function will be evaluated with f(values(limits)...)
 Note that the order of the OrderedDict specifies the order of inputs to the function in this case.
 """
-function create_chebyshev_approximation(f::Function, nodes::Integer, degree::Integer, limits::OrderedDict{Symbol,Tuple{T,T}}, function_takes_Dict::Bool = false) where T<:Real
+function create_chebyshev_approximation(f::Function, nodes::Int, degree::Int, limits::OrderedDict{Symbol,Tuple{Float64,Float64}}, function_takes_Dict::Bool = false)
     # This is all after Algorithm 6.2 from Judd (1998) Numerical Methods in Economics.
     if nodes <= degree
         error("Need to have more nodes than degree to use a chebyshev approximation")
-    end
-    if degree < 1
-        error("Need to have a degree of at least 1.")
     end
     k = 1:nodes
     unnormalised_nodes = -cos.( (((2 .* k) .- 1) ./ (2 * nodes)) .* pi    )

@@ -49,8 +49,8 @@ functions_[2,1] = pw_func
 functions_[2,2] = mfun2 + mfun4
 functions_[3,1] = pw_func + 1.0
 functions_[3,2] = mfun2 + mfun5
-thresholds2_ = OrderedDict{Symbol,Array{Float64,1}}([:x, :y] .=> [[0.0, 0.6, 1.0], [-5.0, -1.0]])
-pw_func2 = Piecewise_Function(functions_, thresholds2_)
+thresholds_ = OrderedDict{Symbol,Array{Float64,1}}([:x, :y] .=> [[0.0, 0.6, 1.0], [-5.0, -1.0]])
+pw_func2 = Piecewise_Function(functions_, thresholds_)
 coords_21 = Dict{Symbol,Float64}([:w, :x, :y, :z] .=> [1.4, 0.7, -3.0, 3.0])
 coords_22 = Dict{Symbol,Float64}([:w, :x, :y, :z] .=> [1.4, 0.7, 0.0, 3.0])
 abs(evaluate(pw_func, coords_21) - evaluate(pw_func2, coords_21)) < tol

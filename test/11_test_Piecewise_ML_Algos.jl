@@ -22,25 +22,20 @@ dd2[(dd2[:x] .> 0.0) .& (dd2[:w] .< 0.0), :y] = 1.1
 
 # Recursive Partitioning
 rp_1, rp_reg_1 = create_recursive_partitioning(dd, y, x_variables, 3; rel_tol = 1e-3)
-rp_2, rp_reg_2 = create_recursive_partitioning(dd, y, x_variables, 3;
-             rel_tol = 1e-10)
+rp_2, rp_reg_2 = create_recursive_partitioning(dd, y, x_variables, 3; rel_tol = 1e-10)
 SSR_1 = sum((rp_reg_1.rr.mu .- rp_reg_1.rr.y) .^ 2)
-rp_3, rp_reg_3 = create_recursive_partitioning(dd, y, x_variables, 4;
-              rel_tol = 1e-3)
+rp_3, rp_reg_3 = create_recursive_partitioning(dd, y, x_variables, 4; rel_tol = 1e-3)
 SSR_3 = sum((rp_reg_3.rr.mu .- rp_reg_3.rr.y) .^ 2)
 SSR_3 <= SSR_1
-rp_4, rp_reg_4 = create_recursive_partitioning(dd, y, x_variables, 7;
-              rel_tol = 1e-3)
+rp_4, rp_reg_4 = create_recursive_partitioning(dd, y, x_variables, 7; rel_tol = 1e-3)
 SSR_4 = sum((rp_reg_4.rr.mu .- rp_reg_4.rr.y) .^ 2)
 SSR_4 <= SSR_3
 # Where we have piecewise constant data.
-rp_21, rp_reg_21 = create_recursive_partitioning(dd2, y, x_variables, 3;
-               rel_tol = 1e-3)
+rp_21, rp_reg_21 = create_recursive_partitioning(dd2, y, x_variables, 3; rel_tol = 1e-3)
 sum(abs.(evaluate(rp_21, dd2) .- dd2[:y])) < 1e-10
 
 # MARS Spline
-rp_1, rp_reg_1 = create_mars_spline(dd, y, x_variables, 3;
-             rel_tol = 1e-3)
+rp_1, rp_reg_1 = create_mars_spline(dd, y, x_variables, 3; rel_tol = 1e-3)
 dd3 = deepcopy(dd)
 dd3[:y] = 8.0 .* max.(0.0, dd3[:x] .+ 3.2) .+ 2.0 .* max.(0.0, dd3[:z] .+ 2.4) .+ 2.7 .* max.(0.0, dd3[:w] .- 1.2)
 rp_32, rp_reg_32 = create_mars_spline(dd3, y, x_variables, 7; rel_tol = 1e-3)

@@ -1,7 +1,7 @@
 name = "MultivariateFunctions"
 uuid = "54e48022-12d0-513b-b20d-e273c072c6db"
 authors = ["Stuart Baumann <stuart@stuartbaumann.com>"]
-version = "0.2.0"
+version = "0.1.7"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"

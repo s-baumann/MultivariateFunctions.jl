@@ -5,7 +5,7 @@ tol = 10*eps()
 function test_pe(a::Float64,b::Float64,base::Float64,d::Int,x::Float64)
     return a * exp(b*(x-base)) * (x-base)^d
 end
-f1 = PE_Function(1.0, 2.0, 3.0, 4)
+f1 = PE_Function(1.0, 2.0,3.0, 4)
 f1_test_result = test_pe(1.0, 2.0,3.0, 4,5.0)
 abs(evaluate(f1, 5.0) - f1_test_result) < tol
 f2 = PE_Function(0.0, 2.0,3.0, 4)
@@ -17,23 +17,23 @@ abs(evaluate(f3, 5.0) - f3_test_result) < tol
 
 # Sum of functions
 sum0 =  Sum_Of_Functions([])
-typeof(sum0) == MultivariateFunctions.Sum_Of_Functions{Float64}
+typeof(sum0) == MultivariateFunctions.Sum_Of_Functions
 sum1 =  Sum_Of_Functions([f1])
-typeof(sum1) == MultivariateFunctions.Sum_Of_Functions{Float64}
+typeof(sum1) == MultivariateFunctions.Sum_Of_Functions
 sum3 =  Sum_Of_Functions([f2,f3])
-typeof(sum3) == MultivariateFunctions.Sum_Of_Functions{Float64}
+typeof(sum3) == MultivariateFunctions.Sum_Of_Functions
 sum4 =  Sum_Of_Functions([f1,f2,f3])
-typeof(sum4) == MultivariateFunctions.Sum_Of_Functions{Float64}
+typeof(sum4) == MultivariateFunctions.Sum_Of_Functions
 length(sum4.functions_) == 2
 sum5 =  Sum_Of_Functions([sum3, sum4])
-typeof(sum5) == MultivariateFunctions.Sum_Of_Functions{Float64}
+typeof(sum5) == MultivariateFunctions.Sum_Of_Functions
 length(sum5.functions_) == 2
 abs(evaluate(sum1, 5.0) - f1_test_result) < tol
 abs(evaluate(sum5, 5.0) - 2*f3_test_result - f1_test_result) < 100* tol
 abs(evaluate(sum0, 5.0)) < tol
 
 
-coordinates = Dict([:x, :y, :z, :w] .=> [0.5, 2.0, 3.5, 4.0])
+coordinates = Dict(Symbol.(["x", "y", "z", "w"]) .=> [0.5, 2.0, 3.5, 4.0])
 
 f = PE_Function(2.4, Dict{Symbol,PE_Unit}([:x,:y,:z,:w] .=> [ PE_Unit(2.0,3.0,2), PE_Unit(2.0,3.0,2) , PE_Unit(2.0,3.0,2), PE_Unit(2.0,3.0,2)   ]))
 new_bases = Dict{Symbol,Float64}([:x,:y,:z, :q] .=> [ 2.8,3.0,1.0,3.0  ])
@@ -48,7 +48,7 @@ function test_result(func, expected_type, eval_to, len = 1)
     if (!val_test)
         print("Failed Val Test")
     end
-    type_test = isa(func, expected_type)
+    type_test = typeof(func) == expected_type
     if (!type_test)
         print("Failed Type Test")
     end
@@ -150,11 +150,11 @@ pe_exp_quad = PE_Function(7.0,2.0,2.0,2)
 
 # Linear gradient constant
 abs(evaluate(derivative(pe_lin),5.0) - evaluate(derivative(pe_lin),1.0) ) < tol
-isa(derivative(pe_lin), MultivariateFunctions.Sum_Of_Functions)
+typeof(derivative(pe_lin)) == MultivariateFunctions.Sum_Of_Functions
 # This is also linear
 abs(evaluate(derivative(derivative(pe_quad)),5.0) -evaluate(derivative(derivative(pe_quad)),9.0) ) < tol
 # derivative into a sum of functions
-isa(derivative(pe_exp_quad), MultivariateFunctions.Sum_Of_Functions)
+typeof(derivative(pe_exp_quad)) == MultivariateFunctions.Sum_Of_Functions
 abs(evaluate(derivative(pe_exp_quad),5.0) - ( 7.0*exp(2.0*(5.0-2.0))*(5.0-2.0)*(2 + 2.0*(5.0-2.0)) ) ) < tol
 # Derivaitve of sum
 abs(evaluate(derivative(sum4),5.0) - evaluate(derivative(f1),5.0) - evaluate(derivative(f3),5.0) ) < 1e-09

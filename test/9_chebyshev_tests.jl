@@ -55,8 +55,8 @@ function func2(dd::Dict{Symbol,Float64})
     return sin(dd[:a])* cos(dd[:c])/ ((1+dd[:b])^2) +  sqrt(1.0+dd[:b])
 end
 func = func2
-nodes  =  13
-degree =  5
+nodes  =  24
+degree =  9
 function_takes_Dict = true
 limits = OrderedDict{Symbol,Tuple{Float64,Float64}}([:a, :b, :c] .=> [(-2.0,1.0), (0.1,0.15), (5.0,11.0)])
 approxim = create_chebyshev_approximation(func, nodes, degree, limits, function_takes_Dict)
@@ -71,6 +71,6 @@ for i in 1:length(y)
 end
 y_approx = evaluate(approxim, dd)
 y .- y_approx
-maximum(abs.(y .- y_approx)) < 0.08
+maximum(abs.(y .- y_approx)) < 0.001
 #using Distributions
 #cor(y,y_approx) > 0.999999

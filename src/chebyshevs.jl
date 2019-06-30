@@ -1,8 +1,8 @@
-function next_chebyshev(previous::Sum_Of_Functions{T}, two_previous::Sum_Of_Functions{T}, dim_name::Symbol) where T<:Real
-    return PE_Function(2.0,Dict{Symbol,PE_Unit{T}}(dim_name => PE_Unit(0.0,0.0,1))) * previous - two_previous
+function next_chebyshev(previous::Sum_Of_Functions, two_previous::Sum_Of_Functions, dim_name::Symbol)
+    return PE_Function(2.0,Dict{Symbol,PE_Unit}(dim_name => PE_Unit(0.0,0.0,1))) * previous - two_previous
 end
 
-function get_first_kind_Chebyshevs(num::Integer, dim_name::Symbol)
+function get_first_kind_Chebyshevs(num::Int, dim_name::Symbol)
     if num < 1
         error("Select a positive number of Chebyshevs to return")
     else
@@ -17,7 +17,7 @@ function get_first_kind_Chebyshevs(num::Integer, dim_name::Symbol)
         return first_kind_chebyshevs
     end
 end
-function get_second_kind_Chebyshevs(num::Integer, dim_name::Symbol)
+function get_second_kind_Chebyshevs(num::Int, dim_name::Symbol)
     if num < 1
         error("Select a positive number of Chebyshevs to return")
     else
@@ -37,7 +37,7 @@ end
     get_chevyshevs_up_to(num::Int, first_kind::Bool = true; dim_name::Symbol = default_symbol)
     Output all chebyshev polynomials up to degree num.
 """
-function get_chevyshevs_up_to(num::Integer, first_kind::Bool = true; dim_name::Symbol = default_symbol)
+function get_chevyshevs_up_to(num::Int, first_kind::Bool = true; dim_name::Symbol = default_symbol)
     if first_kind
         return get_first_kind_Chebyshevs(num,dim_name)
     else

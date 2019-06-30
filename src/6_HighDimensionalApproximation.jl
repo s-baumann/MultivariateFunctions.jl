@@ -1,4 +1,4 @@
-function add_split_with_step_function(array_of_funcs::Array, ind::Integer, split_variable::Symbol, split_point::Real, removeSplitFunction::Bool)
+function add_split_with_step_function(array_of_funcs::Array, ind::Int, split_variable::Symbol, split_point::Float64, removeSplitFunction::Bool)
     basis_function1 = Piecewise_Function( vcat(Sum_Of_Functions([PE_Function(0.0)]), Sum_Of_Functions([PE_Function(1.0)])) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
     basis_function2 = Piecewise_Function( vcat(Sum_Of_Functions([PE_Function(1.0)]), Sum_Of_Functions([PE_Function(0.0)])) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
     other_functions = array_of_funcs[1:end .!= ind] # ind is the index of the function to split.
@@ -10,7 +10,7 @@ function add_split_with_step_function(array_of_funcs::Array, ind::Integer, split
     end
 end
 
-function add_split_with_max_function(array_of_funcs::Array, ind::Integer, split_variable::Symbol, split_point::Real, removeSplitFunction::Bool)
+function add_split_with_max_function(array_of_funcs::Array, ind::Int, split_variable::Symbol, split_point::Float64, removeSplitFunction::Bool)
     max_func = Sum_Of_Functions([PE_Function(1.0, Dict{Symbol,PE_Unit}(split_variable => PE_Unit(0.0,split_point,1)))])
     basis_function1 = Piecewise_Function( vcat(Sum_Of_Functions([PE_Function(0.0)]), max_func) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
     basis_function2 = Piecewise_Function( vcat(-1 * max_func, Sum_Of_Functions([PE_Function(0.0)])) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
@@ -23,14 +23,14 @@ function add_split_with_max_function(array_of_funcs::Array, ind::Integer, split_
     end
 end
 
-function optimise_given_specific_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Integer, split_variable::Symbol, split_point::Real, SplitFunction::Function, removeSplitFunction::Bool)
+function optimise_given_specific_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Int, split_variable::Symbol, split_point::Float64, SplitFunction::Function, removeSplitFunction::Bool)
     model = SplitFunction(array_of_funcs, ind, split_variable, split_point, removeSplitFunction)
     updated_model, reg = create_ols_approximation(dd, y, model)
     SSR = sum((reg.rr.mu .- reg.rr.y) .^ 2)
     return SSR
 end
 
-function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Integer, split_variable::Symbol, rel_tol::Real, SplitFunction::Function, removeSplitFunction::Bool)
+function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Int, split_variable::Symbol, rel_tol::Float64, SplitFunction::Function, removeSplitFunction::Bool)
     lower_limit = minimum(dd[split_variable]) + eps()
     upper_limit = maximum(dd[split_variable]) - eps()
     opt = optimize( x ->  optimise_given_specific_split(dd, y, array_of_funcs, ind, split_variable, x, SplitFunction, removeSplitFunction), lower_limit, upper_limit; rel_tol = rel_tol)
@@ -38,7 +38,7 @@ function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::In
 end
 
 """
-    create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Integer; rel_tol::Float64 = 1e-10)
+    create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-10)
 
 This creates a recusive partitioning approximation. This seperates the space in to a series of hypercubes each of which has a constant
 value within the hypercube. Each step of the algorithm divides a hypercube along some dimension so that the different parts of the hypercube
@@ -50,7 +50,7 @@ decrease it if spline creation time doesnt matter much. Note that a small rel_to
 not the evaluation time.
 """
 
-function create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Integer; rel_tol::Real = 1e-2)
+function create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2)
     Arr = Array{Sum_Of_Functions,length(x_variables)}(undef, repeat([1], length(x_variables))...)
     Arr[repeat([1], length(x_variables))...] = Sum_Of_Functions([PE_Function(1.0)])
     pw_func = Piecewise_Function(Arr, OrderedDict{Symbol,Array{Float64,1}}(x_variables .=> repeat([[-Inf]],length(x_variables))) )
@@ -87,7 +87,7 @@ not that important. For small scale data however you might want to decrease it a
 decrease it if spline creation time doesnt matter much. Note that a small rel_tol only affects creation time for the spline and
 not the evaluation time.
 """
-function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Integer; rel_tol::Real = 1e-2)
+function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2)
     # This should be made more efficient using FAST MARS. https://statistics.stanford.edu/sites/default/files/LCS%20110.pdf
     Arr = Array{Sum_Of_Functions,length(x_variables)}(undef, repeat([1], length(x_variables))...)
     Arr[repeat([1], length(x_variables))...] = Sum_Of_Functions([PE_Function(1.0)])
@@ -116,7 +116,7 @@ function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, 
     return (model = updated_model, regression = reg)
 end
 
-function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, final_number_of_functions::Integer)
+function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, final_number_of_functions::Int)
     if final_number_of_functions < 2
         error("Cannot trim the number of functions to less than 2")
     end
@@ -141,7 +141,7 @@ function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, mo
     updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
     return (model = updated_model, regression = reg)
 end
-function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_increase_in_RSS::Real)
+function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_increase_in_RSS::Float64)
     array_of_funcs = deepcopy(model.functions_)
     updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
     previous_best_lof = sum((reg.rr.mu .- reg.rr.y) .^ 2)
@@ -172,7 +172,7 @@ function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, mode
     updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
     return (model = updated_model, regression = reg)
 end
-function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_RSS::Real)
+function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_RSS::Float64)
     array_of_funcs = deepcopy(model.functions_)
     ender = false
     while (ender = true) & (length(array_of_funcs) > 1)
@@ -202,7 +202,7 @@ function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Pi
 end
 """
 trim_mars_spline(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions;
-                   maximum_RSS::Float64 = -1.0, maximum_increase_in_RSS::Float64 = -1.0, final_number_of_functions::Integer = -1)
+                   maximum_RSS::Float64 = -1.0, maximum_increase_in_RSS::Float64 = -1.0, final_number_of_functions::Int = -1)
 
 This trims a mars spline created in the create_mars_spline function. This algorithm goes through
 each piecewise function in the mars spline and deletes the one that contributes least to the fit.
@@ -213,7 +213,7 @@ functions until a deletion increases RSS by more than this amount. The final is 
 which reduces the number of fucntions to this number.
 """
 function trim_mars_spline(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions;
-                   maximum_RSS::Real = -1.0, maximum_increase_in_RSS::Real = -1.0, final_number_of_functions::Integer = -1)
+                   maximum_RSS::Float64 = -1.0, maximum_increase_in_RSS::Float64 = -1.0, final_number_of_functions::Int = -1)
     if ((maximum_RSS > 0.0) & (maximum_increase_in_RSS > 0.0)) |
        ((maximum_RSS > 0.0) & (final_number_of_functions > 0)) |
        ((maximum_increase_in_RSS > 0.0) & (final_number_of_functions > 0))
