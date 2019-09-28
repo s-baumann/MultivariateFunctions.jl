@@ -15,3 +15,6 @@ Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SchumakerSpline = "65e68595-3a03-5ff5-a6a2-f05fa774f32e"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+julia = "1"
