@@ -6,7 +6,7 @@ using GLM
 using DataFrames: DataFrame
 using DataStructures: OrderedDict
 using Combinatorics: permutations
-using LinearAlgebra: Symmetric, inv, det
+using LinearAlgebra: Hermitian, inv, det
 using Optim
 
 # This includes functions for use of MultivariateFunctions with dates.

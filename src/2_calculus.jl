@@ -166,7 +166,7 @@ end
     Hessian(f::MultivariateFunction, dimensions::Array{Symbol,1})
     Hessian(derivs::Union{Dict{Dict{Symbol,Int},PE_Function},Dict{Dict{Symbol,Int},Sum_Of_Functions},Dict{Dict{Symbol,Int},Piecewise_Function}}, labels_::Array{Symbol,1})
 This represents expressions for constructing a hessian matrix for a function. It can be evaluated
-to get a symmetric matrix of the hessian at a particular location.
+to get a Hermitian matrix of the hessian at a particular location.
 """
 struct Hessian
     derivs_::Union{Dict{Dict{Symbol,Int},PE_Function},Dict{Dict{Symbol,Int},Sum_Of_Functions},Dict{Dict{Symbol,Int},Piecewise_Function}}
@@ -182,7 +182,7 @@ end
 
 """
     evaluate(hess::Hessian, coordinates::Dict{Symbol,Float64})
-This evaluates a Hessian object to create a Symmetric matrix representing the hessian
+This evaluates a Hessian object to create a Hermitian matrix representing the hessian
 at a point.
 """
 function evaluate(hess::Hessian, coordinates::Dict{Symbol,Float64})
@@ -196,7 +196,7 @@ function evaluate(hess::Hessian, coordinates::Dict{Symbol,Float64})
             second_derivs[r,c] = val
         end
     end
-    return Symmetric(second_derivs, :L)
+    return Hermitian(second_derivs, :L)
 end
 
 """

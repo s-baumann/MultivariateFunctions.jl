@@ -30,7 +30,7 @@ end
 
 # The operations of the next two functions are not optimal. If we have the same
 # vector in two columns then we could more efficiently multiply them by noting that
-# the outer product will be symmetric.
+# the outer product will be Hermitian.
 # At some stage it would be good to make better use of symmetry. Come back to this
 # wehn the tensor
 function expand_array(arr::Array{T} where T, vecc::Array{T,1} where T)
