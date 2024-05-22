@@ -9,5 +9,3 @@ There are a few ways in which it can be used.
 * This can be used for approximation functions. It can currently implement OLS functions, Chebyshev polynomials, the Schumaker shape preserving spline and basic interpolation schemes. It can also do Recursive Partitioning and create Multivariate Adaptive Regression (MARS) Splines. It could be extended to implement other approximation schemes.
 * All basic algebra and calculus on a MultivariateFunction can be done analytically.
 * Newton's method is implemented so that roots and optima can be found using analytical Jacobians and Hessians.
-
-This is unlikely to be updated again. I didn't really understand Julia well when I wrote it. I think it is all correct but it is pretty inefficient. So use with care.
