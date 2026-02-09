@@ -17,7 +17,7 @@ export years_between, years_from_global_base, period_length
 include("0_structs_and_generic_reversals.jl")
 export MultivariateFunction, PE_Function, Sum_Of_Functions, Piecewise_Function
 export Sum_Of_Piecewise_Functions, PE_Unit
-export change_base, trim_piecewise_function, sort, convert_to_linearly_rescale_inputs
+export change_base, convert_to_linearly_rescale_inputs
 export evaluate, rebadge, underlying_dimensions, convert, ≂
 include("1_algebra.jl")
 export +, -, *, /, ^
@@ -28,7 +28,7 @@ include("3_1D_splines_and_interpolation.jl")
 export create_quadratic_spline, create_constant_interpolation_to_right
 export create_constant_interpolation_to_left, create_linear_interpolation
 include("chebyshevs.jl")
-export get_chevyshevs_up_to
+export get_chebyshevs_up_to, get_chevyshevs_up_to
 include("4_chebyshev_approximation.jl")
 export create_chebyshev_approximation
 include("5_ols_regression.jl")

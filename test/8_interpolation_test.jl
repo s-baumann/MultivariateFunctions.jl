@@ -7,11 +7,11 @@ StartDate = Date(2018, 7, 21)
 
 x = StartDate .+ Dates.Day.(2 .* (1:1000 .- 1))
 
-function ff(x::Date)
+function ff_interp(x::Date)
     days_between = years_from_global_base(x)
     return log(days_between) + sqrt(days_between)
 end
-y = ff.(x)
+y = ff_interp.(x)
 
 spline = create_linear_interpolation(x,y)
 # Test if interpolating

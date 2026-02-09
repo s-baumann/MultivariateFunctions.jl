@@ -2,7 +2,7 @@
 
 | Build | Coverage | Documentation |
 |-------|----------|---------------|
-| [![Build status](https://github.com/s-baumann/MultivariateFunctions.jl/workflows/CI/badge.svg)](https://github.com/s-baumann/MultivariateFunctions.jl/actions) | [![codecov](https://codecov.io/gh/s-baumann/MultivariateFunctions.jl/branch/main/graph/badge.svg?token=sElLVJgRel)](https://codecov.io/gh/s-baumann/MultivariateFunctions.jl) | [![docs-latest-img](https://img.shields.io/badge/docs-latest-blue.svg)](https://s-baumann.github.io/MultivariateFunctions.jl/dev/index.html) |
+| [![Build status](https://github.com/s-baumann/MultivariateFunctions.jl/workflows/CI/badge.svg)](https://github.com/s-baumann/MultivariateFunctions.jl/actions) | [![codecov](https://codecov.io/gh/s-baumann/MultivariateFunctions.jl/branch/master/graph/badge.svg?token=sElLVJgRel)](https://codecov.io/gh/s-baumann/MultivariateFunctions.jl) | [![docs-latest-img](https://img.shields.io/badge/docs-latest-blue.svg)](https://s-baumann.github.io/MultivariateFunctions.jl/dev/index.html) |
 
 This implements single algebra and evaluation on Multivariate functions.
 There are a few ways in which it can be used.

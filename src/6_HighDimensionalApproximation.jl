@@ -23,17 +23,32 @@ function add_split_with_max_function(array_of_funcs::Array, ind::Int, split_vari
     end
 end
 
-function optimise_given_specific_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Int, split_variable::Symbol, split_point::Float64, SplitFunction::Function, removeSplitFunction::Bool)
-    model = SplitFunction(array_of_funcs, ind, split_variable, split_point, removeSplitFunction)
-    updated_model, reg = create_ols_approximation(dd, y, model)
-    SSR = sum((reg.rr.mu .- reg.rr.y) .^ 2)
-    return SSR
-end
-
 function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Int, split_variable::Symbol, rel_tol::Float64, SplitFunction::Function, removeSplitFunction::Bool)
-    lower_limit = minimum(dd[split_variable]) + eps()
-    upper_limit = maximum(dd[split_variable]) - eps()
-    opt = optimize( x ->  optimise_given_specific_split(dd, y, array_of_funcs, ind, split_variable, x, SplitFunction, removeSplitFunction), lower_limit, upper_limit; rel_tol = rel_tol)
+    lower_limit = minimum(dd[!, split_variable]) + eps()
+    upper_limit = maximum(dd[!, split_variable]) - eps()
+
+    # Pre-compute design matrix columns for basis functions that don't change
+    y_vec = dd[!, y]
+    if removeSplitFunction
+        unchanged_funcs = array_of_funcs[1:end .!= ind]
+    else
+        unchanged_funcs = array_of_funcs
+    end
+    if length(unchanged_funcs) > 0
+        X_cached = hcat(evaluate.(unchanged_funcs, Ref(dd))...)
+    else
+        X_cached = Matrix{Float64}(undef, size(dd, 1), 0)
+    end
+
+    opt = optimize(lower_limit, upper_limit; rel_tol = rel_tol) do split_point
+        # Only construct and evaluate the 2 new basis functions
+        model = SplitFunction(array_of_funcs, ind, split_variable, split_point, removeSplitFunction)
+        new_funcs = model[end-1:end]
+        X_new = hcat(evaluate.(new_funcs, Ref(dd))...)
+        X = hcat(X_cached, X_new)
+        reg = fit(LinearModel, X, y_vec; dropcollinear=true)
+        return sum((reg.rr.mu .- reg.rr.y) .^ 2)
+    end
     return (opt.minimum, opt.minimizer)
 end
 
@@ -92,7 +107,7 @@ function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, 
     Arr = Array{Sum_Of_Functions,length(x_variables)}(undef, repeat([1], length(x_variables))...)
     Arr[repeat([1], length(x_variables))...] = Sum_Of_Functions([PE_Function(1.0)])
     pw_func = Piecewise_Function(Arr, OrderedDict{Symbol,Array{Float64,1}}(x_variables .=> repeat([[-Inf]],length(x_variables))) )
-    array_of_funcs = Array{Piecewise_Function,1}([pw_func])
+    array_of_funcs = Vector{Piecewise_Function}([pw_func])
     for M in 2:MaxM
         best_lof    = Inf
         best_m      = 1
@@ -120,7 +135,7 @@ function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, mo
     if final_number_of_functions < 2
         error("Cannot trim the number of functions to less than 2")
     end
-    array_of_funcs = deepcopy(model.functions_)
+    array_of_funcs = model.functions_
     functions_to_delete = length(model.functions_) - final_number_of_functions
     for M in 1:functions_to_delete
         best_lof = Inf
@@ -142,11 +157,11 @@ function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, mo
     return (model = updated_model, regression = reg)
 end
 function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_increase_in_RSS::Float64)
-    array_of_funcs = deepcopy(model.functions_)
+    array_of_funcs = model.functions_
     updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
     previous_best_lof = sum((reg.rr.mu .- reg.rr.y) .^ 2)
     ender = false
-    while (ender = true) & (length(array_of_funcs) > 1)
+    while !ender && (length(array_of_funcs) > 1)
         best_m = 2
         best_lof = Inf
         len = length(array_of_funcs)
@@ -165,17 +180,15 @@ function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, mode
             previous_best_lof = best_lof
         else
             ender = true
-            updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
-            return (model = updated_model, regression = reg)
         end
     end
     updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
     return (model = updated_model, regression = reg)
 end
 function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_RSS::Float64)
-    array_of_funcs = deepcopy(model.functions_)
+    array_of_funcs = model.functions_
     ender = false
-    while (ender = true) & (length(array_of_funcs) > 1)
+    while !ender && (length(array_of_funcs) > 1)
         best_lof = Inf
         best_m = 2
         len = length(array_of_funcs)
@@ -193,8 +206,6 @@ function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Pi
             array_of_funcs = array_of_funcs[1:end .!= best_m]
         else
             ender = true
-            updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
-            return (model = updated_model, regression = reg)
         end
     end
     updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
@@ -214,11 +225,11 @@ which reduces the number of fucntions to this number.
 """
 function trim_mars_spline(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions;
                    maximum_RSS::Float64 = -1.0, maximum_increase_in_RSS::Float64 = -1.0, final_number_of_functions::Int = -1)
-    if ((maximum_RSS > 0.0) & (maximum_increase_in_RSS > 0.0)) |
-       ((maximum_RSS > 0.0) & (final_number_of_functions > 0)) |
-       ((maximum_increase_in_RSS > 0.0) & (final_number_of_functions > 0))
+    if ((maximum_RSS > 0.0) && (maximum_increase_in_RSS > 0.0)) ||
+       ((maximum_RSS > 0.0) && (final_number_of_functions > 0)) ||
+       ((maximum_increase_in_RSS > 0.0) && (final_number_of_functions > 0))
         error("You cannot specify more than one condition for trimming the mars spline.")
-    elseif (maximum_RSS < 0.0) & (maximum_increase_in_RSS < 0.0) & (final_number_of_functions < 0)
+    elseif (maximum_RSS < 0.0) && (maximum_increase_in_RSS < 0.0) && (final_number_of_functions < 0)
         error("You must specify at least one condition for trimming. The final number of functions to trim to, the maximum increase in RSS or the maximum RSS.")
     elseif (maximum_RSS > 0.0)
         return trim_mars_spline_maximum_RSS(dd, y, model, maximum_RSS)

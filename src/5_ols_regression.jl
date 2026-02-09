@@ -7,7 +7,7 @@ is to be predicted by inputting a symbol y. you also put in an array of what x_v
 function create_saturated_ols_approximation(dd::DataFrame, y::Symbol, x_variables::Array{Symbol,1}, degree::Int; intercept::Bool = true,  bases::Dict{Symbol,Float64} = Dict{Symbol,Float64}(x_variables .=> repeat([0.0],length(x_variables))))
     model = Array{PE_Function,1}()
     if intercept
-        append!(model, [PE_Function(1.0,Dict{Symbol,PE_Unit}())] )
+        push!(model, PE_Function(1.0,Dict{Symbol,PE_Unit}()))
     end
     if degree > 0
         number_of_variables = length(x_variables)
@@ -20,7 +20,7 @@ function create_saturated_ols_approximation(dd::DataFrame, y::Symbol, x_variable
         for i in 2:degree
             degree_terms = Array{PE_Function,1}()
             for j in 1:number_of_variables
-                append!(degree_terms, linear_set[j] .* hcat(higher_order_terms[i-1]))
+                append!(degree_terms, linear_set[j] .* higher_order_terms[i-1])
             end
             higher_order_terms[i] = degree_terms
         end
@@ -31,18 +31,18 @@ function create_saturated_ols_approximation(dd::DataFrame, y::Symbol, x_variable
 end
 
 """
-    create_ols_approximation(dd::DataFrame, y::Symbol, model::MultivariateFunction; allowrankdeficient = true)
-    create_ols_approximation(dd::DataFrame, y::Symbol, model::Sum_Of_Functions; allowrankdeficient = true)
-    create_ols_approximation(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions; allowrankdeficient = true)
+    create_ols_approximation(dd::DataFrame, y::Symbol, model::MultivariateFunction; dropcollinear = true)
+    create_ols_approximation(dd::DataFrame, y::Symbol, model::Sum_Of_Functions; dropcollinear = true)
+    create_ols_approximation(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions; dropcollinear = true)
 This creates MultivariationFunction from an OLS regression predicting some variable. You input a dataframe and specify what column in that dataframe
 is to be predicted by inputting a symbol y. You also input the regression model. This is input as a Array{MultivariateFunction,1}.
 Each function that is input will be multiplied by the ols coefficient and will return a new function with these coefficients
 incorporated.
 """
-function create_ols_approximation(dd::DataFrame, y::Symbol, model::Array; allowrankdeficient = true)
+function create_ols_approximation(dd::DataFrame, y::Symbol, model::Array; dropcollinear = true)
     X = hcat(evaluate.(model, Ref(dd))...)
-    y = dd[y]
-    reg = fit(LinearModel, X,y, allowrankdeficient)
+    y = dd[!, y]
+    reg = fit(LinearModel, X, y; dropcollinear=dropcollinear)
     coefficients = reg.pp.beta0
     updated_model = Sum_Of_Piecewise_Functions(model .* coefficients)
     return updated_model, reg
@@ -62,8 +62,8 @@ order terms of x should be used (for instance degree 2 implies x and x^2 are bot
 """
 function create_ols_approximation(y::Array{Float64,1}, x::Array{Float64,1}, degree::Int; intercept::Bool = true, dim_name::Symbol = default_symbol, base_x::Float64 = 0.0)
     dd = DataFrame()
-    dd[dim_name] = x
-    dd[:y]       = y
+    dd[!, dim_name] = x
+    dd[!, :y]       = y
     base_dict = Dict{Symbol,Float64}(dim_name => base_x)
     return create_saturated_ols_approximation(dd, :y, [dim_name], degree; intercept = intercept, bases = base_dict)
 end

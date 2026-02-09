@@ -11,17 +11,11 @@ function derivative_(u::PE_Unit)# Intentially changing name so this is not expor
     return result_array
 end
 function derivative_(u::Array{Tuple{Float64,PE_Unit},1})# Intentially changing name so this is not exported.
-    len = length(u)
-    heap = Array{Tuple{Float64,PE_Unit},1}()
-    for i in 1:len
-        u_result = u[i]
-        mult = u_result[1]
-        output = derivative_(u_result[2])
-        output_mults, output_units =  collect(zip(output...))
-        output_mults = mult .* vcat(output_mults...)
-        output_units = vcat(output_units...)
-        zipped_output = collect(zip(output_mults,output_units))
-        append!(heap, zipped_output)
+    heap = Tuple{Float64,PE_Unit}[]
+    for (mult, unit) in u
+        for (dm, du) in derivative_(unit)
+            push!(heap, (mult * dm, du))
+        end
     end
     return heap
 end
@@ -37,29 +31,33 @@ function derivative(f::PE_Function, derivs::Dict{Symbol,Int})
     dims = keys(derivs)
     fdims = keys(f.units_)
 
-    if (length(setdiff(dims,fdims)) > 0) && minimum(get.(Ref(derivs), [setdiff(dims,fdims)...],0)) < 1
+    extra_dims = setdiff(dims, fdims)
+    if length(extra_dims) > 0 && maximum(get.(Ref(derivs), [extra_dims...], 0)) >= 1
         return PE_Function()
     end
+    active_dims = [d for d in dims if derivs[d] > 0]
     dims_dict = Dict{Symbol,Array{Tuple{Float64,PE_Unit},1}}()
-    units = deepcopy(f.units_)
-    for dimen in dims
-        num_derivs = derivs[dimen]
-        if num_derivs > 0
-            if dimen in keys(units)
-                unit = pop!(units, dimen)
-                der = derivative_(unit)
-                for i in 2:num_derivs
-                    der = derivative_(der)
-                end
-                dims_dict[dimen] = der
-            else
-                dims_dict[dimen] = Array{Tuple{Float64,PE_Unit},1}([(0.0, PE_Unit())])
+    remaining_units = Dict{Symbol,PE_Unit}()
+    for (k, unit) in f.units_
+        if k in active_dims
+            num_derivs = derivs[k]
+            der = derivative_(unit)
+            for i in 2:num_derivs
+                der = derivative_(der)
             end
+            dims_dict[k] = der
+        else
+            remaining_units[k] = unit
         end
     end
-    array_of_tups = [Dict(dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),dims)...))...,)]
+    for dimen in active_dims
+        if !haskey(dims_dict, dimen)
+            dims_dict[dimen] = Array{Tuple{Float64,PE_Unit},1}([(0.0, PE_Unit())])
+        end
+    end
+    array_of_tups = [Dict(active_dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),active_dims)...))...,)]
     array_of_pes = PE_Function.(1.0, array_of_tups)
-    remaining_dims = PE_Function(f.multiplier_, units)
+    remaining_dims = PE_Function(f.multiplier_, remaining_units)
     final_result = remaining_dims .* array_of_pes
     if length(final_result) == 0
         return PE_Function()
@@ -92,7 +90,7 @@ function derivative(f::Sum_Of_Piecewise_Functions, derivs::Dict{Symbol,Int})
 end
 
 function derivative(f::Missing, derivs::Dict{Symbol,Int})
-    return Missing()
+    return missing
 end
 
 function derivative(f::MultivariateFunction)
@@ -105,14 +103,13 @@ function derivative(f::MultivariateFunction)
 end
 
 function add_to_dict(dic::Dict{Symbol,Int}, new_symbol::Symbol)
-    dd = deepcopy(dic)
-    if new_symbol in keys(dd)
+    dd = copy(dic)
+    if haskey(dd, new_symbol)
         dd[new_symbol] = 1 + dd[new_symbol]
-        return dd
     else
         dd[new_symbol] = 1
-        return dd
     end
+    return dd
 end
 
 
@@ -127,7 +124,7 @@ function all_derivatives(f::MultivariateFunction, degree::Int = 2, dimensions::S
         derivs = Dict{Dict{Symbol,Int},Sum_Of_Functions}()
     end
     derivs[Dict{Symbol,Int}()] =  f
-    previous_dicts = Set(collect(keys(derivs)))
+    previous_dicts = Set(keys(derivs))
     for deg in 1:degree
         for prev in previous_dicts
             for dimension in dimensions
@@ -190,7 +187,7 @@ function evaluate(hess::Hessian, coordinates::Dict{Symbol,Float64})
     second_derivs = Array{Float64,2}(undef,len,len)
     for c in 1:len
         for r in c:len
-            lookup_dict = Dict{Symbol,Int}([hess.labels_[r],hess.labels_[c]] .=> [1,1])
+            lookup_dict = add_to_dict(Dict{Symbol,Int}(hess.labels_[r] => 1), hess.labels_[c])
             func = hess.derivs_[lookup_dict]
             val = evaluate(func, coordinates)
             second_derivs[r,c] = val
@@ -226,8 +223,8 @@ function find_local_optima(func::MultivariateFunction, initial_guess::Dict{Symbo
             if print_reports
                 println(string("Converged. The converged value of f is ", val, "."))
             end
-            hessian_det_sign = det(hessn) > 0
-            return NamedTuple{(:coordinates, :value, :convergence, :positive_definite_hessian)}((guess, val, true, hessian_det_sign))
+            is_positive_definite = all(det(hessn[1:k, 1:k]) > 0 for k in 1:size(hessn, 1))
+            return NamedTuple{(:coordinates, :value, :convergence, :positive_definite_hessian)}((guess, val, true, is_positive_definite))
         end
         step_ = inverse_hessian * evaluated_jacobian
         x = get.(Ref(guess), dimensions, 0)
@@ -346,25 +343,33 @@ function integral(f::PE_Function, limits::IntegrationLimitDict)
         end
         return volume_of_cube * f.multiplier_
     end
-    units = deepcopy(f.units_)
-    result_by_dimension = Array{Union{Float64,Sum_Of_Functions,PE_Function},1}()
-    for dimen in keys(limits)
-        left_  = limits[dimen][1]
-        right_ = limits[dimen][2]
-        f_unit = Array{PE_Unit,1}(undef,1)
-        if haskey(f.units_, dimen)
-            f_unit = pop!(units, dimen)
+    remaining_units = Dict{Symbol,PE_Unit}()
+    result_by_dimension = Union{Float64,Sum_Of_Functions,PE_Function}[]
+    limit_keys = Set(keys(limits))
+    for (k, unit) in f.units_
+        if k in limit_keys
+            left_  = limits[k][1]
+            right_ = limits[k][2]
+            indef  = indefinite_integral(unit)
+            result_of_applying_limits = apply_limits(1.0, indef, left_, right_)
+            push!(result_by_dimension, result_of_applying_limits)
         else
-            f_unit = PE_Unit()
+            remaining_units[k] = unit
         end
-        indef  = indefinite_integral(f_unit)
-        result_of_applying_limits = apply_limits(1.0, indef, left_, right_)
-        append!(result_by_dimension, [result_of_applying_limits])
     end
-    if length(units) == 0
+    # Handle limit dimensions not present in units
+    for dimen in keys(limits)
+        if !haskey(f.units_, dimen)
+            f_unit = PE_Unit()
+            indef  = indefinite_integral(f_unit)
+            result_of_applying_limits = apply_limits(1.0, indef, limits[dimen][1], limits[dimen][2])
+            push!(result_by_dimension, result_of_applying_limits)
+        end
+    end
+    if length(remaining_units) == 0
         return f.multiplier_ * prod(result_by_dimension)
     else
-        return PE_Function(f.multiplier_, units) * prod(result_by_dimension)
+        return PE_Function(f.multiplier_, remaining_units) * prod(result_by_dimension)
     end
 end
 
@@ -403,12 +408,11 @@ function hypercubes_to_integrate(f::Piecewise_Function, lims::Dict{Symbol,Tuple{
         new_dict[dimen] = censored_thresholds2
     end
     lengths_minus_one = length.(get.(Ref(new_dict),ks,0)) .- 1
-    index_combinations = vcat.(collect(collect(Iterators.product(range.(1,lengths_minus_one; step = 1)...))))
-    indices = (collect(collect(Iterators.product(range.(1,lengths_minus_one; step = 1)...)))...,)
+    indices = (collect(collect(Iterators.product(UnitRange.(1, lengths_minus_one)...)))...,)
     indices = collect(collect.(indices))
     total_len = length(indices)
     new_cubes = Array{Dict{Symbol,Tuple{Float64,Float64}},1}(undef,total_len)
-    for i in range(1, total_len; step = 1)
+    for i in 1:total_len
         new_cube = Dict{Symbol,Tuple{Float64,Float64}}()
         ind = indices[i]
         for j in 1:length(ks)
@@ -438,7 +442,7 @@ end
 function integral(f::MultivariateFunction, left_limit::Float64, right_limit::Float64)
     underlyingDims = underlying_dimensions(f)
     if length(underlyingDims) == 0
-        return f.multiplier_ * (right_limit-left_limit)
+        return evaluate(f, 0.0) * (right_limit-left_limit)
     elseif underlyingDims == Set([default_symbol])
         limits_ = Dict{Symbol,Tuple{Float64,Float64}}(default_symbol => Tuple{Float64,Float64}((left_limit,right_limit)))
         return integral(f, limits_)

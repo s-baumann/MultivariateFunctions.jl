@@ -20,7 +20,7 @@ function change_base_(u::PE_Unit, new_base::Float64) # Intentially changing name
         n = u.d_
         funcs = Array{Tuple{Float64,PE_Unit},1}(undef,n+1)
         for r in 0:n
-            binom_coeff = factorial(n) / (factorial(r) * factorial(n-r))
+            binom_coeff = binomial(n, r)
             new_multiplier = binom_coeff * mult * diff^r
             new_unit = PE_Unit(u.b_, new_base, n-r)
             new_func = (new_multiplier, new_unit)
@@ -188,7 +188,7 @@ function -(f1::PE_Function, f2::Sum_Of_Piecewise_Functions)
 end
 
 function -(f1::Sum_Of_Functions, f2::PE_Function)
-    return +(f1,1*f2)
+    return +(f1,-1*f2)
 end
 function -(f1::Piecewise_Function, f2::PE_Function)
     return +(f1,-1*f2)
@@ -213,7 +213,7 @@ function *(f1::PE_Function,f2::PE_Function)
         f2_rebase = change_base(f2, min_bases)
         L1 = length(f1_rebase)
         L2 = length(f2_rebase)
-        if (L1 == 1) & (L2 == 1)
+        if (L1 == 1) && (L2 == 1)
             f1_ = f1_rebase[1]
             f2_ = f2_rebase[1]
             new_mult = f1_.multiplier_ * f2_.multiplier_
@@ -222,7 +222,7 @@ function *(f1::PE_Function,f2::PE_Function)
             PEs = Array{PE_Function,1}()
             for f in f1_rebase
                 for g in f2_rebase
-                    append!(PEs, [f * g])
+                    push!(PEs, f * g)
                 end
             end
         end
@@ -261,11 +261,7 @@ function -(f::Sum_Of_Functions, number::Float64)
     return +(f, -number)
 end
 function *(f::Sum_Of_Functions, number::Float64)
-    funcs = deepcopy(f.functions_)
-    for i in 1:length(funcs)
-        funcs[i] = funcs[i] * number
-    end
-    return Sum_Of_Functions(funcs)
+    return Sum_Of_Functions(f.functions_ .* number)
 end
 function /(f::Sum_Of_Functions, number::Float64)
     return *(f, 1/number )
@@ -310,9 +306,12 @@ function +(f1::Sum_Of_Functions, f2::Sum_Of_Functions)
     return Sum_Of_Functions([f1,f2])
 end
 function +(f1::Sum_Of_Functions, f2::Piecewise_Function)
-    funcs = deepcopy(f2.functions_)
-    for f in f1.functions_
-        funcs = funcs .+ f
+    if length(f1.functions_) == 0
+        return f2
+    end
+    funcs = f2.functions_ .+ f1.functions_[1]
+    for i in 2:length(f1.functions_)
+        funcs = funcs .+ f1.functions_[i]
     end
     return Piecewise_Function(funcs, f2.thresholds_)
 end
@@ -567,9 +566,11 @@ function convert_to_linearly_rescale_inputs(f::PE_Function, alpha_beta::Dict{Sym
         final_units[dd] = f.units_[dd]
     end
     for dim in keys(alpha_beta)
-        mm, unit = convert_to_linearly_rescale_inputs(f.units_[dim], alpha_beta[dim][1], alpha_beta[dim][2])
-        final_units[dim] = unit
-        mult = mult * mm
+        if haskey(f.units_, dim)
+            mm, unit = convert_to_linearly_rescale_inputs(f.units_[dim], alpha_beta[dim][1], alpha_beta[dim][2])
+            final_units[dim] = unit
+            mult = mult * mm
+        end
     end
     return PE_Function(mult, final_units)
 end

@@ -1,5 +1,5 @@
 import Base.+, Base.-, Base./, Base.*, Base.^
-import Base.sort, Base.convert, Base.zero
+import Base.sort, Base.convert
 import SchumakerSpline.evaluate
 using Dates
 abstract type MultivariateFunction end
@@ -14,7 +14,7 @@ An empty PE_Unit (which might be used to create a constant PE_Function) can be c
 struct PE_Unit
     b_::Float64
     base_::Float64
-    d_::Integer
+    d_::Int
     function PE_Unit()
         return new(0.0,0.0,0)
     end
@@ -23,7 +23,7 @@ struct PE_Unit
             error("Negative polynomial powers are not supported by this package")
             # These are banned due to the complications for calculus. Most
             # divisions are not allowed for the same reason.
-        elseif (b_ ≂ 0.0) & (d_ == 0)
+        elseif (b_ ≂ 0.0) && (d_ == 0)
             return new(0.0,0.0,0)
         else
             return new(b_,base_,d_)
@@ -65,7 +65,7 @@ struct PE_Function <: MultivariateFunction
     end
     function PE_Function(multiplier_::Float64, units_::Dict{Symbol,PE_Unit})
         for k in keys(units_)
-            if (units_[k].b_ ≂ 0.0) & (units_[k].d_ == 0)
+            if (units_[k].b_ ≂ 0.0) && (units_[k].d_ == 0)
                 pop!(units_, k)
             end
         end
@@ -108,24 +108,20 @@ end
     can be used to change the names of the variables in a MultivariateFunction.
 """
 function rebadge(f::PE_Function, mapping::Dict{Symbol,Symbol})
-    original_units = deepcopy(f.units_)
     units_ = Dict{Symbol,PE_Unit}()
-    for k in keys(mapping)
-        if k in keys(f.units_)
-            unit = pop!(original_units,k)
+    for (k, unit) in f.units_
+        if haskey(mapping, k)
             units_[mapping[k]] = unit
+        else
+            units_[k] = unit
         end
-    end
-    for k in keys(original_units)
-        unit = pop!(original_units,k)
-        units_[k] = unit
     end
     return PE_Function(f.multiplier_, units_)
 end
 
 function rebadge(f::MultivariateFunction, new_symbol::Symbol)
     underlying = underlying_dimensions(f)
-    if length(underlying) > 1
+    if length(underlying) <= 1
         mapping = Dict{Symbol,Symbol}(collect(underlying) .=> [new_symbol])
         return rebadge(f, mapping)
     else
@@ -143,15 +139,18 @@ end
 """
 function evaluate(f::PE_Function, coordinates::Dict{Symbol,Float64})
     val = f.multiplier_
-    units = deepcopy(f.units_)
-    for k in intersect(keys(units), keys(coordinates))
-        unit = pop!(units, k)
-        val = val * evaluate(unit, coordinates[k])
+    remaining_units = Dict{Symbol,PE_Unit}()
+    for (k, unit) in f.units_
+        if haskey(coordinates, k)
+            val = val * evaluate(unit, coordinates[k])
+        else
+            remaining_units[k] = unit
+        end
     end
-    if length(units) == 0
+    if length(remaining_units) == 0
         return val
     else
-        return PE_Function(val, units)
+        return PE_Function(val, remaining_units)
     end
 end
 
@@ -185,17 +184,19 @@ struct Sum_Of_Functions <: MultivariateFunction
     functions_::Array{PE_Function,1}
     function Sum_Of_Functions(funs::Array{PE_Function,1})
         # This is O((n^2)/2). Ideally I could get O(n).
-        functions = funs[(((p->p.multiplier_).(funs) .≂ 0.0) .== false)]
+        functions = filter(p -> !(p.multiplier_ ≂ 0.0), funs)
         len = length(functions)
         if len == 0
             return new(Array{PE_Function,1}())
         end
         equiv_class = Array{Int,1}(undef,len)
         equiv_class .= 0
+        next_class = 1
         for i in 1:(len-1)
             f1 = functions[i]
             if equiv_class[i] == 0
-                equiv_class[i] = maximum(equiv_class) + 1
+                equiv_class[i] = next_class
+                next_class += 1
                 for j in (i+1):(len)
                     if equiv_class[j] == 0
                         f2 = functions[j]
@@ -229,16 +230,20 @@ struct Sum_Of_Functions <: MultivariateFunction
             ff = convert(Array{PE_Function,1}, [])
             return new(ff)
         else
-            undefined_funcs  = functions[typeof.(functions) .== Missing  ]
-            piecewise_funcs  = functions[typeof.(functions) .== MultivariateFunctions.Piecewise_Function]
-            if length(undefined_funcs) > 0
-                return Missing()
-            elseif length(piecewise_funcs) > 0
-                error("It is not possible to construct a sum of functions from a piecewise function.")
+            pe_funcs = PE_Function[]
+            sum_funcs = Sum_Of_Functions[]
+            for f in functions
+                if f isa Missing
+                    return missing
+                elseif f isa MultivariateFunctions.Piecewise_Function
+                    error("It is not possible to construct a sum of functions from a piecewise function.")
+                elseif f isa PE_Function
+                    push!(pe_funcs, f)
+                elseif f isa MultivariateFunctions.Sum_Of_Functions
+                    push!(sum_funcs, f)
+                end
             end
-            pe_funcs   = functions[typeof.(functions) .== MultivariateFunctions.PE_Function]
-            sum_funcs  = functions[typeof.(functions) .== MultivariateFunctions.Sum_Of_Functions]
-            pe_sum = Sum_Of_Functions(convert(Array{PE_Function,1}, pe_funcs))
+            pe_sum = Sum_Of_Functions(pe_funcs)
             if length(sum_funcs) == 0
                 return pe_sum
             else
@@ -297,7 +302,7 @@ a :y coordinate of 2.7 then the function we look up will be from the file functi
 This is because 2.7 is greater than the second element of [-4.0,0.0,3.4] but less than the third.
 If this piecewise function were to be queried at a :y coordinate of -5.0 then a missing value will be returned. To specify piecewise functions on an
 unlimited domain the first element of the threshold can be set as -Inf. To set a limited domain on the upper end then add a Missing value to the functions_
-array. Any other (ie interior) point can also be made undefined by putting a Missing() type into the functions_ array.
+array. Any other (ie interior) point can also be made undefined by putting a missing value into the functions_ array.
 
 Note that Piecewise_Function works by assigning a Sum_Of_Functions to every region within the space defined by the thresholds_ dict. It is only possible to
 specify a region as a hypercube however. More complex regions are not possible.
@@ -326,7 +331,7 @@ struct Piecewise_Function <: MultivariateFunction
     function Piecewise_Function(functions_::Array, thresholds_::OrderedDict{Symbol,Array{Float64,1}})
         # This might catch alot of times where someone wants a piecewise function of a piecewise function.
         # The strategy here will be to build a piecewise function without the piecewise bits. Then loop over and add the piecewise bits to the first.
-        piecewise_indices = findall(typeof.(functions_) .== MultivariateFunctions.Piecewise_Function)
+        piecewise_indices = findall(f -> f isa Piecewise_Function, functions_)
         if length(piecewise_indices) == 0
             #converted_funcs = convert(Array{Union{Missing,Sum_Of_Functions}}, functions_)
             converted_funcs = convert(Array{Union{Missing,Sum_Of_Functions}}, functions_)
@@ -363,19 +368,19 @@ struct Piecewise_Function <: MultivariateFunction
             k = ks[i]
             thres = f.thresholds_[k][lower_point[i]:upper_point[i]]
              if (-Inf < thres[1])  # thres cannot be higher based on how lower_point was made. They could be equal.
-                 append!(pad_start, [true])
+                 push!(pad_start, true)
                  thres = vcat([-Inf], hypercube[k][1], thres[2:length(thres)])
-            elseif (-Inf == thres[1]) & (thres[1] < hypercube[k][1])
-                append!(pad_start, [true])
+            elseif (-Inf == thres[1]) && (thres[1] < hypercube[k][1])
+                push!(pad_start, true)
                 thres = vcat([-Inf], hypercube[k][1], thres[2:length(thres)])
-            elseif (-Inf == thres[1]) & (thres[1] == hypercube[k][1])
-                append!(pad_start, [false])
+            elseif (-Inf == thres[1]) && (thres[1] == hypercube[k][1])
+                push!(pad_start, false)
             end
             if (hypercube[k][2] < Inf)  # thres cannot be higher based on how lower_point was made. They could be equal.
-                append!(pad_end, [true])
+                push!(pad_end, true)
                 thres = vcat(thres, [hypercube[k][2]])
            else
-               append!(pad_end, [false])
+               push!(pad_end, false)
            end
            new_thresholds_[k] = thres
         end
@@ -383,7 +388,7 @@ struct Piecewise_Function <: MultivariateFunction
         if zero_outside_cube
             funcs_ .= PE_Function(0.0)
         else
-            funcs_ .= Missing()
+            funcs_ .= missing
         end
         funcs_[range.(1 .+ pad_start, pad_start .+ vcat(size(funcs)...)  ; step = 1)...] = funcs
         return Piecewise_Function(funcs_, new_thresholds_)
@@ -446,7 +451,7 @@ end
 function get_correct_function_from_piecewise(f::Piecewise_Function, coordinates::Dict{Symbol,Float64})
     segment_coordinates = get_point_coordinates(f, coordinates)
     if 0 in segment_coordinates
-        return Missing()
+        return missing
     else
         func = getindex(f.functions_, segment_coordinates...)
         return func
@@ -466,7 +471,7 @@ end
 function get_correct_function_from_piecewise(f::Piecewise_Function, cubes::Dict{Symbol,Tuple{Float64,Float64}})
     segment_coordinates = get_point_coordinates(f, cubes)
     if 0 in segment_coordinates
-        return Missing()
+        return missing
     else
         func = getindex(f.functions_, segment_coordinates...)
         return func
@@ -499,7 +504,7 @@ function get_threshold_dict(f1::Piecewise_Function,f2::Piecewise_Function)
     keyset = unique(vcat(labels1,labels2))
     theshold_dict = OrderedDict{Symbol,Array{Float64,1}}()
     for k in keyset
-        if (k in keys(f1.thresholds_)) & (k in keys(f2.thresholds_))
+        if (k in keys(f1.thresholds_)) && (k in keys(f2.thresholds_))
             theshold_dict[k] = unique(sort!(vcat(f1.thresholds_[k], f2.thresholds_[k])))
         elseif (k in keys(f1.thresholds_))
             theshold_dict[k] = f1.thresholds_[k]
@@ -547,13 +552,24 @@ struct Sum_Of_Piecewise_Functions <: MultivariateFunction
         return functions_
     end
     function Sum_Of_Piecewise_Functions(functions_::Array)
-        pe_function_funcs                        = functions_[typeof.(functions_) .== MultivariateFunctions.PE_Function]
-        Sum_Of_Functions_funcs                   = functions_[typeof.(functions_) .== MultivariateFunctions.Sum_Of_Functions]
-        piecewise_funcs                          = functions_[typeof.(functions_) .== MultivariateFunctions.Piecewise_Function]
-        sum_of_piecewise_functions_funcs         = functions_[typeof.(functions_) .== MultivariateFunctions.Sum_Of_Piecewise_Functions]
+        pe_function_funcs = PE_Function[]
+        Sum_Of_Functions_funcs = Sum_Of_Functions[]
+        piecewise_funcs = Piecewise_Function[]
+        sum_of_piecewise_functions_funcs = Sum_Of_Piecewise_Functions[]
+        for f in functions_
+            if f isa PE_Function
+                push!(pe_function_funcs, f)
+            elseif f isa MultivariateFunctions.Sum_Of_Functions
+                push!(Sum_Of_Functions_funcs, f)
+            elseif f isa Piecewise_Function
+                push!(piecewise_funcs, f)
+            elseif f isa Sum_Of_Piecewise_Functions
+                push!(sum_of_piecewise_functions_funcs, f)
+            end
+        end
         piece_length = length(piecewise_funcs)
         funcs_length = length(functions_)
-        if length(pe_function_funcs) + length(Sum_Of_Functions_funcs) + piece_length + length(sum_of_piecewise_functions_funcs) < length(functions_)
+        if length(pe_function_funcs) + length(Sum_Of_Functions_funcs) + piece_length + length(sum_of_piecewise_functions_funcs) < funcs_length
             error("A Sum_Of_Piecewise_Functions can only be created by an array of multivariate functions")
         elseif (funcs_length == 0) # So we have no functions input.
             return Sum_Of_Functions([])
@@ -616,7 +632,7 @@ function ≂(a::MultivariateFunction,b::MultivariateFunction)
     return false # Note that this will not be called unless there is no overloads - hence it is a different function.
 end
 function ≂(a::PE_Unit,b::PE_Unit)
-    if (a.b_ ≂ b.b_) & (a.base_ ≂ b.base_) & (a.d_ == b.d_)
+    if (a.b_ ≂ b.b_) && (a.base_ ≂ b.base_) && (a.d_ == b.d_)
         return true
     else
         return false
@@ -685,38 +701,70 @@ function evaluate(f::PE_Function, coordinates::DataFrame)
     if length(f.units_) == 0
         return result
     end
-    units = deepcopy(f.units_)
-    col_names = names(coordinates)
-    for col in col_names
-        if haskey(units, col)
-            ff = pop!(units, col)
-            result .= result .* evaluate.(Ref(ff), coordinates[col])
+    col_names = Set(Symbol.(names(coordinates)))
+    remaining_units = Dict{Symbol,PE_Unit}()
+    for (k, unit) in f.units_
+        if k in col_names
+            result .= result .* evaluate.(Ref(unit), coordinates[!, k])
+        else
+            remaining_units[k] = unit
         end
     end
-    if length(units) == 0
+    if length(remaining_units) == 0
         return result
     else
-        return PE_Function.(result, units)
+        return PE_Function.(result, Ref(remaining_units))
     end
 end
 
 function evaluate(f::Sum_Of_Functions, coordinates::DataFrame)
     if length(f.functions_) == 0
-        return repeat([0.0], size(coordinates)[1])
+        return zeros(size(coordinates, 1))
     end
     results = evaluate.(f.functions_, Ref(coordinates))
     return sum(results)
 end
 function evaluate(f::Piecewise_Function, coordinates::DataFrame)
     len = size(coordinates)[1]
-    results = Array{Union{Float64,MultivariateFunction},1}(undef, len)
-    underlying = underlying_dimensions(f)
-    for r in 1:len
-        coordinate = Dict{Symbol,Float64}()
-        for dimen in names(coordinates)
-            coordinate[dimen] = coordinates[r,dimen]
+    labels = collect(keys(f.thresholds_))
+    ndims_pw = length(labels)
+
+    # Compute segment indices for all rows at once
+    seg = Matrix{Int}(undef, len, ndims_pw)
+    for (j, dimen) in enumerate(labels)
+        thresholds = f.thresholds_[dimen]
+        col = coordinates[!, dimen]
+        for i in 1:len
+            seg[i, j] = searchsortedlast(thresholds, col[i])
         end
-        results[r] = evaluate(f ,coordinate)
+    end
+
+    # Group rows by cell
+    cell_to_rows = Dict{NTuple{ndims_pw,Int}, Vector{Int}}()
+    for i in 1:len
+        key = ntuple(j -> seg[i, j], ndims_pw)
+        if haskey(cell_to_rows, key)
+            push!(cell_to_rows[key], i)
+        else
+            cell_to_rows[key] = [i]
+        end
+    end
+
+    # Batch-evaluate each cell
+    results = Vector{Float64}(undef, len)
+    for (idx, rows) in cell_to_rows
+        if 0 in idx
+            results[rows] .= NaN
+            continue
+        end
+        func = f.functions_[idx...]
+        if ismissing(func)
+            results[rows] .= NaN
+        else
+            sub_df = coordinates[rows, :]
+            sub_results = evaluate(func, sub_df)
+            results[rows] = sub_results
+        end
     end
     return results
 end

@@ -14,10 +14,7 @@ function evaluate_function_at_nodes(func::Function, unnormalised_nodes::Array{Fl
     y_indicies = CartesianIndices(y)
     for i in y_indicies
         index = Tuple(i)
-        coords = Array{Float64,1}()
-        for j in 1:length(index)
-            append!(coords, normalised_node_array[index[j],j])
-        end
+        coords = [normalised_node_array[index[j],j] for j in 1:length(index)]
         if function_takes_Dict
             coordsDict = Dict{Symbol,Float64}(labels .=> coords)
             y[i] = func(coordsDict)
@@ -36,9 +33,9 @@ end
 function expand_array(arr::Array{T} where T, vecc::Array{T,1} where T)
     sze = size(arr)
     dim = length(sze)
-    new_arr = Array{typeof(vecc[1]),dim + 1}(undef, vcat(sze..., sze[1])...)
+    new_arr = Array{typeof(vecc[1]),dim + 1}(undef, sze..., sze[1])
     for i in 1:length(vecc)
-        new_arr[repeat([:],dim)...,i] = arr .* vecc[i]
+        new_arr[fill(:,dim)...,i] = arr .* vecc[i]
     end
     return new_arr
 end
@@ -59,7 +56,7 @@ function get_cholesky_coefficients(evaluated_chebyshevs_on_sum_squared::Array{Fl
     nodes = size(evaluated_chebyshevs_on_sum_squared)[1]
     dimensions = length(size(y))
     coefficients = zeros(repeat([degree], dimensions)...)
-    perms = unique(collect(permutations(1:dimensions)))
+    perms = collect(permutations(1:dimensions))
     indices = CartesianIndices(coefficients)
     for i in indices
         if (coefficients[i] ≂ 0.0)

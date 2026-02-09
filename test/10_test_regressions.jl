@@ -63,10 +63,10 @@ sum(abs.(glm_preds .- package_predictions)) < 1e-10
 Random.seed!(1992)
 nObs = 1000
 dd = DataFrame()
-dd[:x] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
-dd[:z] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
-dd[:w] = (0.5 .* rand( Normal(),nObs)) .+ 0.7.*(dd[:z] .- dd[:x]) + 0.1 .* rand( Normal(),nObs)
-dd[:y] = (dd[:x] .*dd[:w] ) .* (dd[:z] .- dd[:w]) .+ dd[:x] + rand( Normal(),nObs)
+dd[!, :x] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
+dd[!, :z] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
+dd[!, :w] = (0.5 .* rand( Normal(),nObs)) .+ 0.7.*(dd[!, :z] .- dd[!, :x]) + 0.1 .* rand( Normal(),nObs)
+dd[!, :y] = (dd[!, :x] .*dd[!, :w] ) .* (dd[!, :z] .- dd[!, :w]) .+ dd[!, :x] + rand( Normal(),nObs)
 dd[7,:y] = 1.0
 
 # Creating basic PE_Units
@@ -82,8 +82,8 @@ x_lin_z_quad  = PE_Function(1.0, Dict{Symbol,PE_Unit}([:x, :z] .=> [linear, quad
 model = constant_term + x_lin + z_lin + w_lin + w_quad + x_lin_z_quad
 # Regression and testing
 mod_1, reg_1 = create_ols_approximation(dd, :y, model)
-dd[:predicted_y] = evaluate(mod_1, dd)
-sum(abs.(dd[:predicted_y] - reg_1.rr.mu)) < 1e-12
+dd[!, :predicted_y] = evaluate(mod_1, dd)
+sum(abs.(dd[!, :predicted_y] - reg_1.rr.mu)) < 1e-12
 
 # Now we look at a saturated model.
 y = :y
@@ -92,8 +92,8 @@ degree = 2
 intercept = true
 univariate_dim_name = :default
 mod_2, reg_2 = create_saturated_ols_approximation(dd, y, x_variables, degree)
-dd[:predicted_y_2] = evaluate(mod_2, dd)
-sum(abs.(dd[:predicted_y_2] - reg_2.rr.mu)) < 1e-12
+dd[!, :predicted_y_2] = evaluate(mod_2, dd)
+sum(abs.(dd[!, :predicted_y_2] - reg_2.rr.mu)) < 1e-12
 
 # Now we look at a saturated model.
 y = :y
@@ -102,10 +102,10 @@ degree = 3
 intercept = true
 univariate_dim_name = :default
 mod_3, reg_3 = create_saturated_ols_approximation(dd, y, x_variables, degree)
-dd[:predicted_y_3] = evaluate(mod_3, dd)
-sum(abs.(dd[:predicted_y_3] - reg_3.rr.mu)) < 1e-11
+dd[!, :predicted_y_3] = evaluate(mod_3, dd)
+sum(abs.(dd[!, :predicted_y_3] - reg_3.rr.mu)) < 1e-11
 
 # Now the second model should have higher RSS than the first because it has fewer variables and terms. We can test this:
-sum((dd[:predicted_y_2] .- dd[:y]).^2) > sum((dd[:predicted_y] .- dd[:y]).^2)
+sum((dd[!, :predicted_y_2] .- dd[!, :y]).^2) > sum((dd[!, :predicted_y] .- dd[!, :y]).^2)
 # The third model should have lower RSS than the first because it has more terms. Testing this:
-sum((dd[:predicted_y_3] .- dd[:y]).^2) < sum((dd[:predicted_y] .- dd[:y]).^2)
+sum((dd[!, :predicted_y_3] .- dd[!, :y]).^2) < sum((dd[!, :predicted_y] .- dd[!, :y]).^2)

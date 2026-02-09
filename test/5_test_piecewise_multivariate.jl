@@ -27,7 +27,7 @@ func_array[2,1,1] = Sum_Of_Functions(2*mfun1)
 func_array[2,1,2] = mfun1 + mfun5
 func_array[2,2,1] = mfun1 + mfun5
 func_array[2,2,2] = mfun2 + mfun1 + mfun5
-func_array[3,:,:] .= Missing()
+func_array[3,:,:] .= missing
 
 thresholds_ = OrderedDict{Symbol,Array{Float64,1}}([:x, :y, :z] .=> [[0.0, 0.5, 1.0], [-5.0, -1.0], [0.0, 5.0]])
 
@@ -58,7 +58,7 @@ abs(evaluate(pw_func, coords_22) - evaluate(pw_func2, coords_22)) > 1.0
 
 ###############################################################################
 coordinates = Dict(Symbol.(["w","x", "y", "z"]) .=> [1.4, 0.5, 2.0, 3.0])
-function test_result(func, eval_to, len = 1)
+function test_result_pwmv(func, eval_to, len = 1)
     val_test = abs(evaluate(func, coordinates) - eval_to) < 1e-05
     if (!val_test)
         println("Failed Val Test")
@@ -70,7 +70,7 @@ function test_result(func, eval_to, len = 1)
     return all([val_test,len_test])
 end
 ismissing(evaluate(pw_func, Dict(Symbol.(["w","x", "y", "z"]) .=> [-Inf, -Inf, -Inf, -Inf])))
-test_result(pw_func, evaluate( mfun1 + mfun5, coordinates), 12)
+test_result_pwmv(pw_func, evaluate( mfun1 + mfun5, coordinates), 12)
 deriv = Dict{Symbol,Int}(Symbol.(["x", "z"]) .=> [2,1])
 abs(evaluate(derivative(pw_func, deriv), coordinates) - evaluate(derivative(mfun1 + mfun5, deriv), coordinates)) < tol
 
@@ -90,19 +90,19 @@ integral_of_piecewise = integral(pw_func, integration_limits)
 abs(integral_of_each_piece - integral_of_piecewise)  < tol
 
 # test algebra between Piecewise_Functions and PE_Functions.
-test_result(pw_func + mfun4, evaluate( mfun1 + mfun5, coordinates) + evaluate(mfun4, coordinates), 12)
-test_result(pw_func - mfun4, evaluate( mfun1 + mfun5, coordinates) - evaluate(mfun4, coordinates), 12)
-test_result(pw_func * mfun4, evaluate( mfun1 + mfun5, coordinates) * evaluate(mfun4, coordinates), 12)
-test_result(mfun4 + pw_func, evaluate( mfun1 + mfun5, coordinates) + evaluate(mfun4, coordinates), 12)
-test_result(mfun4 - pw_func,  evaluate(mfun4, coordinates) - evaluate( mfun1 + mfun5, coordinates), 12)
-test_result(mfun4 * pw_func, evaluate( mfun1 + mfun5, coordinates) * evaluate(mfun4, coordinates), 12)
+test_result_pwmv(pw_func + mfun4, evaluate( mfun1 + mfun5, coordinates) + evaluate(mfun4, coordinates), 12)
+test_result_pwmv(pw_func - mfun4, evaluate( mfun1 + mfun5, coordinates) - evaluate(mfun4, coordinates), 12)
+test_result_pwmv(pw_func * mfun4, evaluate( mfun1 + mfun5, coordinates) * evaluate(mfun4, coordinates), 12)
+test_result_pwmv(mfun4 + pw_func, evaluate( mfun1 + mfun5, coordinates) + evaluate(mfun4, coordinates), 12)
+test_result_pwmv(mfun4 - pw_func,  evaluate(mfun4, coordinates) - evaluate( mfun1 + mfun5, coordinates), 12)
+test_result_pwmv(mfun4 * pw_func, evaluate( mfun1 + mfun5, coordinates) * evaluate(mfun4, coordinates), 12)
 # Multivariate Sum of Functions
-test_result(pw_func + msum, evaluate( mfun1 + mfun5, coordinates) + evaluate(msum, coordinates), 12)
-test_result(pw_func - msum, evaluate( mfun1 + mfun5, coordinates) - evaluate(msum, coordinates), 12)
-test_result(pw_func * msum, evaluate( mfun1 + mfun5, coordinates) * evaluate(msum, coordinates), 12)
-test_result(msum + pw_func, evaluate( mfun1 + mfun5, coordinates) + evaluate(msum, coordinates), 12)
-test_result(msum - pw_func,  evaluate(msum, coordinates) - evaluate( mfun1 + mfun5, coordinates), 12)
-test_result(msum * pw_func, evaluate( mfun1 + mfun5, coordinates) * evaluate(msum, coordinates), 12)
+test_result_pwmv(pw_func + msum, evaluate( mfun1 + mfun5, coordinates) + evaluate(msum, coordinates), 12)
+test_result_pwmv(pw_func - msum, evaluate( mfun1 + mfun5, coordinates) - evaluate(msum, coordinates), 12)
+test_result_pwmv(pw_func * msum, evaluate( mfun1 + mfun5, coordinates) * evaluate(msum, coordinates), 12)
+test_result_pwmv(msum + pw_func, evaluate( mfun1 + mfun5, coordinates) + evaluate(msum, coordinates), 12)
+test_result_pwmv(msum - pw_func,  evaluate(msum, coordinates) - evaluate( mfun1 + mfun5, coordinates), 12)
+test_result_pwmv(msum * pw_func, evaluate( mfun1 + mfun5, coordinates) * evaluate(msum, coordinates), 12)
 
 
 # Algebra between different Multivariate_Piecewise_Functions
@@ -118,9 +118,9 @@ func_array[2,2,2] = mfun4 + mfun1 + mfun5
 func_array[3,:,:] .= mfun4 + mfun5 + mfun1
 
 pw_func2 = Piecewise_Function(func_array, OrderedDict([:x, :y, :w] .=> [[0.2, 0.5, 1.0], [-4.0, -1.0], [0.0, 5.0]]))
-test_result(pw_func + pw_func2, evaluate( (mfun1 + mfun5) + (mfun5 + mfun5), coordinates), 3*4*2*2)
-test_result(pw_func - pw_func2, evaluate( (mfun1 + mfun5) - (mfun5 + mfun5), coordinates), 3*4*2*2)
-test_result(pw_func * pw_func2, evaluate( (mfun1 + mfun5) * (mfun5 + mfun5), coordinates), 3*4*2*2)
+test_result_pwmv(pw_func + pw_func2, evaluate( (mfun1 + mfun5) + (mfun5 + mfun5), coordinates), 3*4*2*2)
+test_result_pwmv(pw_func - pw_func2, evaluate( (mfun1 + mfun5) - (mfun5 + mfun5), coordinates), 3*4*2*2)
+test_result_pwmv(pw_func * pw_func2, evaluate( (mfun1 + mfun5) * (mfun5 + mfun5), coordinates), 3*4*2*2)
 
 
 ## Testing of Sum_Of_Piecewise_Functions
@@ -131,13 +131,13 @@ converted = convert(Piecewise_Function, spwf)
 added = (pw_func + pw_func2)
 converted.functions_[2,2,2,1].functions_[1] ≂ added.functions_[2,2,2,1].functions_[1]
 
-test_result( (spwf + 1) - 1, evaluate( spwf, coordinates), 2)
-test_result( 1 + (1 - spwf ), 2 - evaluate( spwf, coordinates), 2)
-test_result( (spwf + 1.0) - 1.0, evaluate( spwf, coordinates), 2)
-test_result( 1.0 + (1.0 - spwf ), 2 - evaluate( spwf, coordinates), 2)
-test_result( (3 *spwf * 2) / 4, evaluate( spwf, coordinates) * 1.5, 2)
-test_result( (3.0 *spwf * 2.0) / 4.0, evaluate( spwf, coordinates) * 1.5, 2)
-test_result( (spwf^2), evaluate( spwf, coordinates)^2, 48)
+test_result_pwmv( (spwf + 1) - 1, evaluate( spwf, coordinates), 2)
+test_result_pwmv( 1 + (1 - spwf ), 2 - evaluate( spwf, coordinates), 2)
+test_result_pwmv( (spwf + 1.0) - 1.0, evaluate( spwf, coordinates), 2)
+test_result_pwmv( 1.0 + (1.0 - spwf ), 2 - evaluate( spwf, coordinates), 2)
+test_result_pwmv( (3 *spwf * 2) / 4, evaluate( spwf, coordinates) * 1.5, 2)
+test_result_pwmv( (3.0 *spwf * 2.0) / 4.0, evaluate( spwf, coordinates) * 1.5, 2)
+test_result_pwmv( (spwf^2), evaluate( spwf, coordinates)^2, 48)
 deriv_spec = Dict{Symbol,Int}(:x => 1)
 abs(evaluate(derivative(spwf, deriv_spec), coordinates) -  evaluate(derivative(pw_func,deriv_spec), coordinates) - evaluate(derivative(pw_func2, deriv_spec), coordinates)) < 1e-09
 integration_limits = Dict{Symbol,Tuple{Float64,Float64}}([:x, :y, :w, :z] .=> [(0.25,0.75),(-4.0,-1.0),(0.0,8.0), (0.5, 2.4)])

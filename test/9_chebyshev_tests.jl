@@ -40,7 +40,7 @@ approxim = create_chebyshev_approximation(func, nodes, degree, limits, function_
 st =  0.99
 d = vcat(Iterators.product(convert(Array{Float64,1}, limits[:a][1]:st:limits[:a][2]),convert(Array{Float64,1}, limits[:b][1]:st:limits[:b][2]),convert(Array{Float64,1}, limits[:c][1]:st:limits[:c][2]))...)
 dd = DataFrame()
-dd[:a], dd[:b], dd[:c]  = vcat.(d...)
+dd[!, :a], dd[!, :b], dd[!, :c]  = vcat.(d...)
 y = Array{Float64,1}(undef, size(dd)[1])
 for i in 1:length(y)
     y[i] = func.(dd[i,:a], dd[i,:b], dd[i,:c])
@@ -63,7 +63,7 @@ approxim = create_chebyshev_approximation(func, nodes, degree, limits, function_
 st =  0.6
 d = vcat(Iterators.product(convert(Array{Float64,1}, limits[:a][1]:st:limits[:a][2]),convert(Array{Float64,1}, limits[:b][1]:st:limits[:b][2]),convert(Array{Float64,1}, limits[:c][1]:st:limits[:c][2]))...)
 dd = DataFrame()
-dd[:a], dd[:b], dd[:c]  = vcat.(d...)
+dd[!, :a], dd[!, :b], dd[!, :c]  = vcat.(d...)
 y = Array{Float64,1}(undef, size(dd)[1])
 for i in 1:length(y)
     dic = Dict{Symbol,Float64}([:a,:b,:c] .=> [dd[i,:a], dd[i,:b], dd[i,:c]])

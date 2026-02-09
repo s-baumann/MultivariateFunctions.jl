@@ -20,7 +20,7 @@ f4 =  Piecewise_Function([secc, f1, secc, last_], [-2.1, -1.1,4.0, 40.0])
 
 rebadge_test = rebadge(f3, Dict{Symbol,Symbol}(:default => :tester))
 pop!(underlying_dimensions(rebadge_test)) == :tester
-function test_result(func, eval0, eval5, len = 1)
+function test_result_pw(func, eval0, eval5, len = 1)
     val_test0 = abs(evaluate(func, 0.0) - eval0) < 1e-09
     if (!val_test0)
         print("Failed Val Test at 0.0")
@@ -41,49 +41,49 @@ function test_result(func, eval0, eval5, len = 1)
 end
 
 # Testing with Ints
-test_result(f1 + 5, 5.0, 505.0, 4)
-test_result(5 + f1, 5.0, 505.0, 4)
-test_result(f1 - 5, -5.0, 495.0, 4)
-test_result(5 - f1, 5.0, -495.0, 4)
-test_result(f1 * 5, 0.0, 2500.0, 4)
-test_result(5 * f1, 0.0, 2500.0, 4)
-test_result(f1 / 5, 0.0, 100.0, 4)
+test_result_pw(f1 + 5, 5.0, 505.0, 4)
+test_result_pw(5 + f1, 5.0, 505.0, 4)
+test_result_pw(f1 - 5, -5.0, 495.0, 4)
+test_result_pw(5 - f1, 5.0, -495.0, 4)
+test_result_pw(f1 * 5, 0.0, 2500.0, 4)
+test_result_pw(5 * f1, 0.0, 2500.0, 4)
+test_result_pw(f1 / 5, 0.0, 100.0, 4)
 # And with Float64s
-test_result(f1 + 5.0, 5.0, 505.0, 4)
-test_result(5.0 + f1, 5.0, 505.0, 4)
-test_result(f1 - 5.0, -5.0, 495.0, 4)
-test_result(5.0 - f1, 5.0, -495.0, 4)
-test_result(f1 * 5.0, 0.0, 2500.0, 4)
-test_result(5.0 * f1, 0.0, 2500.0, 4)
-test_result(f1 / 5.0, 0.0, 100.0, 4)
+test_result_pw(f1 + 5.0, 5.0, 505.0, 4)
+test_result_pw(5.0 + f1, 5.0, 505.0, 4)
+test_result_pw(f1 - 5.0, -5.0, 495.0, 4)
+test_result_pw(5.0 - f1, 5.0, -495.0, 4)
+test_result_pw(f1 * 5.0, 0.0, 2500.0, 4)
+test_result_pw(5.0 * f1, 0.0, 2500.0, 4)
+test_result_pw(f1 / 5.0, 0.0, 100.0, 4)
 
 
-typeof(f4 + Missing()) == Missing
-typeof(Missing() + f4) == Missing
-typeof(f4 - Missing()) == Missing
-typeof(Missing() - f4) == Missing
-typeof(f4 * Missing()) == Missing
-typeof(Missing() * f4) == Missing
+typeof(f4 + missing) == Missing
+typeof(missing + f4) == Missing
+typeof(f4 - missing) == Missing
+typeof(missing - f4) == Missing
+typeof(f4 * missing) == Missing
+typeof(missing * f4) == Missing
 
 typeof(-1*f4) == MultivariateFunctions.Piecewise_Function
 
-test_result(f1 + first_, 0.0, 505.0, 4)
-test_result(first_ + f1, 0.0, 505.0, 4)
-test_result(f1 - first_, 0.0, 495.0, 4)
-test_result(first_ - f1, 0.0, -495.0, 4)
-test_result(f1 * first_, 0.0, 2500.0, 4)
-test_result(first_ * f1, 0.0, 2500.0, 4)
+test_result_pw(f1 + first_, 0.0, 505.0, 4)
+test_result_pw(first_ + f1, 0.0, 505.0, 4)
+test_result_pw(f1 - first_, 0.0, 495.0, 4)
+test_result_pw(first_ - f1, 0.0, -495.0, 4)
+test_result_pw(f1 * first_, 0.0, 2500.0, 4)
+test_result_pw(first_ * f1, 0.0, 2500.0, 4)
 
-test_result(f1 + last_, 0.0, 1005.0, 4)
-test_result(last_ + f1, 0.0, 1005.0, 4)
-test_result(f1 - last_, 0.0, -5.0, 4)
-test_result(last_ - f1, 0.0, 5.0, 4)
-test_result(f1 * last_, 0.0, 252500.0, 4)
-test_result(last_ * f1, 0.0, 252500.0, 4)
+test_result_pw(f1 + last_, 0.0, 1005.0, 4)
+test_result_pw(last_ + f1, 0.0, 1005.0, 4)
+test_result_pw(f1 - last_, 0.0, -5.0, 4)
+test_result_pw(last_ - f1, 0.0, 5.0, 4)
+test_result_pw(f1 * last_, 0.0, 252500.0, 4)
+test_result_pw(last_ * f1, 0.0, 252500.0, 4)
 
-test_result(f1 + f4, 0.0, 1000.0, 8)
-test_result(f1 - f4, 0.0, 0.0, 8)
-test_result(f1 * f4, 0.0, 250000.0, 8)
+test_result_pw(f1 + f4, 0.0, 1000.0, 8)
+test_result_pw(f1 - f4, 0.0, 0.0, 8)
+test_result_pw(f1 * f4, 0.0, 250000.0, 8)
 
 # Testing linear rescaling
 #test function will be f4

@@ -14,7 +14,7 @@ obs = 1000
 X = rand(obs)
 y = X .+ rand(Normal(),obs) .+ 7
 # And now making an approximation function
-approxFunction = create_ols_approximation(y, X, 2)
+approxFunction, reg = create_ols_approximation(y, X, 2)
 ```
 
 ## Numerical Integration with Chebyshev polynomials
@@ -41,10 +41,10 @@ using DataStructures
 Random.seed!(1992)
 nObs = 1000
 dd = DataFrame()
-dd[:x] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
-dd[:z] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
-dd[:w] = (0.5 .* rand( Normal(),nObs)) .+ 0.7.*(dd[:z] .- dd[:x]) + 0.1 .* rand( Normal(),nObs)
-dd[:y] = (dd[:x] .*dd[:w] ) .* (dd[:z] .- dd[:w]) .+ dd[:x] + rand( Normal(),nObs)
+dd[!, :x] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
+dd[!, :z] = rand( Normal(),nObs) + 0.1 .* rand( Normal(),nObs)
+dd[!, :w] = (0.5 .* rand( Normal(),nObs)) .+ 0.7.*(dd[!, :z] .- dd[!, :x]) + 0.1 .* rand( Normal(),nObs)
+dd[!, :y] = (dd[!, :x] .*dd[!, :w] ) .* (dd[!, :z] .- dd[!, :w]) .+ dd[!, :x] + rand( Normal(),nObs)
 dd[7,:y] = 1.0
 y = :y
 x_variables = Set{Symbol}([:w, :x, :z])
