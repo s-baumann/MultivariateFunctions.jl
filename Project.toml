@@ -1,6 +1,6 @@
 name = "MultivariateFunctions"
 uuid = "54e48022-12d0-513b-b20d-e273c072c6db"
-version = "0.4.0"
+version = "0.2.0"
 authors = ["Stuart Baumann <stuart@stuartbaumann.com>"]
 
 [deps]
