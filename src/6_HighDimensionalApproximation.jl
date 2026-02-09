@@ -64,7 +64,6 @@ that much. For small scale data however you might want to decrease it and increa
 decrease it if spline creation time doesnt matter much. Note that a small rel_tol only affects creation time for the spline and
 not the evaluation time.
 """
-
 function create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2)
     Arr = Array{Sum_Of_Functions,length(x_variables)}(undef, repeat([1], length(x_variables))...)
     Arr[repeat([1], length(x_variables))...] = Sum_Of_Functions([PE_Function(1.0)])

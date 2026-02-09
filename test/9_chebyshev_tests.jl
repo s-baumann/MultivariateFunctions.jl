@@ -2,6 +2,87 @@ using MultivariateFunctions
 using DataStructures: OrderedDict
 using DataFrames
 
+tol = 1e-14
+
+# =====================================================
+# Direct tests of chebyshevs.jl — first kind
+# =====================================================
+
+# Test get_chebyshevs_up_to returns correct number
+cheb1 = get_chebyshevs_up_to(1)
+length(cheb1) == 1
+
+# T_0(x) = 1
+abs(evaluate(cheb1[1], 0.5) - 1.0) < tol
+abs(evaluate(cheb1[1], -3.0) - 1.0) < tol
+
+# T_0 through T_4
+cheb5 = get_chebyshevs_up_to(5)
+length(cheb5) == 5
+
+# T_1(x) = x
+abs(evaluate(cheb5[2], 0.7) - 0.7) < tol
+abs(evaluate(cheb5[2], -0.3) - (-0.3)) < tol
+
+# T_2(x) = 2x^2 - 1
+x_test = 0.6
+abs(evaluate(cheb5[3], x_test) - (2*x_test^2 - 1)) < tol
+
+# T_3(x) = 4x^3 - 3x
+abs(evaluate(cheb5[4], x_test) - (4*x_test^3 - 3*x_test)) < tol
+
+# T_4(x) = 8x^4 - 8x^2 + 1
+abs(evaluate(cheb5[5], x_test) - (8*x_test^4 - 8*x_test^2 + 1)) < tol
+
+# Chebyshev identity: T_n(cos(θ)) = cos(nθ)
+θ = 0.8
+for n in 0:4
+    abs(evaluate(cheb5[n+1], cos(θ)) - cos(n*θ)) < 1e-10
+end
+
+# =====================================================
+# Second kind Chebyshevs
+# =====================================================
+
+cheb2nd = get_chebyshevs_up_to(5, false)
+length(cheb2nd) == 5
+
+# U_0(x) = 1
+abs(evaluate(cheb2nd[1], x_test) - 1.0) < tol
+
+# U_1(x) = 2x
+abs(evaluate(cheb2nd[2], x_test) - 2*x_test) < tol
+
+# U_2(x) = 4x^2 - 1
+abs(evaluate(cheb2nd[3], x_test) - (4*x_test^2 - 1)) < tol
+
+# U_3(x) = 8x^3 - 4x
+abs(evaluate(cheb2nd[4], x_test) - (8*x_test^3 - 4*x_test)) < tol
+
+# U_4(x) = 16x^4 - 12x^2 + 1
+abs(evaluate(cheb2nd[5], x_test) - (16*x_test^4 - 12*x_test^2 + 1)) < tol
+
+# Second kind identity: U_n(cos(θ)) = sin((n+1)θ) / sin(θ)
+for n in 0:4
+    abs(evaluate(cheb2nd[n+1], cos(θ)) - sin((n+1)*θ)/sin(θ)) < 1e-10
+end
+
+# =====================================================
+# Custom dim_name
+# =====================================================
+
+cheb_custom = get_chebyshevs_up_to(3; dim_name = :t)
+underlying_dimensions(cheb_custom[2]) == Set([:t])
+abs(evaluate(cheb_custom[2], Dict(:t => 0.5)) - 0.5) < tol
+
+# =====================================================
+# Old spelling alias
+# =====================================================
+
+cheb_old = get_chevyshevs_up_to(3)
+abs(evaluate(cheb_old[3], x_test) - evaluate(cheb5[3], x_test)) < tol
+
+# =====================================================
 # Chebyshev approximation
 func = sin
 nodes  =  12

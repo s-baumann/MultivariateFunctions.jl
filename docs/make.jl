@@ -11,6 +11,7 @@ makedocs(
              "4_examples_algebra.md",
              "5_examples_interpolation.md",
              "6_examples_approximation.md",
+             "7_api_reference.md",
              "99_refs.md"]
 )
 

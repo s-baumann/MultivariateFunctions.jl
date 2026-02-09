@@ -13,7 +13,7 @@ function years_between(until::Date, from::Date)
     return (Dates.days(until) -Dates.days(from))/ days_per_year
 end
 function years_between(until::Dates.Day, from::Dates.Day)
-    return (convert(Int, until)-convert(Int, from))/ days_per_year
+    return (Dates.value(until)-Dates.value(from))/ days_per_year
 end
 
 """
