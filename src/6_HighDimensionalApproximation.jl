@@ -11,7 +11,7 @@ function add_split_with_step_function(array_of_funcs::Array, ind::Int, split_var
 end
 
 function add_split_with_max_function(array_of_funcs::Array, ind::Int, split_variable::Symbol, split_point::Float64, removeSplitFunction::Bool)
-    max_func = Sum_Of_Functions([PE_Function(1.0, Dict{Symbol,PE_Unit}(split_variable => PE_Unit(0.0,split_point,1)))])
+    max_func = Sum_Of_Functions([PE_Function(1.0, UnitMap([split_variable => PE_Unit(0.0,split_point,1)]))])
     basis_function1 = Piecewise_Function( vcat(Sum_Of_Functions([PE_Function(0.0)]), max_func) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
     basis_function2 = Piecewise_Function( vcat(-1 * max_func, Sum_Of_Functions([PE_Function(0.0)])) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
     other_functions = array_of_funcs[1:end .!= ind] # ind is the index of the function to split.

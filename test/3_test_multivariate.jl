@@ -19,13 +19,13 @@ fun10 = PE_Function(3.0,0.0,Date(2016,1,1),2)
 limits = Dict{Symbol, Tuple{Union{Symbol,Float64},Union{Symbol,Float64}}}( [:x,:y] .=> [(:x_left, 5.6), (:y_left, :y_right) ]   )
 
 
-mfun1 = PE_Function(1.8, Dict([:x, :y, :z] .=> [PE_Unit(1.0,1.0,1), PE_Unit(1.0,1.0,1), PE_Unit(1.0,2.0,3)]))
+mfun1 = PE_Function(1.8, make_unit_map([:x, :y, :z] .=> [PE_Unit(1.0,1.0,1), PE_Unit(1.0,1.0,1), PE_Unit(1.0,2.0,3)]))
 abs(mfun1.multiplier_ - 1.2*1.5) < 1e-10
-mfun2 = PE_Function(4.5, Dict([:x, :y] .=> [PE_Unit(1.0,2.0,3), PE_Unit(1.0,3.0,2)]))
-mfun3 = PE_Function(3.0, Dict([:z, :y] .=> [ PE_Unit(1.0,3.0,2), PE_Unit(1.0,1.0,1)]))
-mfun4 = PE_Function(6.0, Dict([:x, :y] .=> [PE_Unit(0.0,1.0,1), PE_Unit(0.0,2.0,4)]))
-mfun5 = PE_Function(6.0, Dict([:x, :z] .=> [PE_Unit(0.0,1.0,1), PE_Unit(0.0,2.0,2)]))
-mfun6 = PE_Function(18.0, Dict([:x, :y, :z] .=> [PE_Unit(0.0,Date(2015,1,1),4), PE_Unit(0.0,1.0,1), PE_Unit(0.0,Date(2016,1,1),2)]))
+mfun2 = PE_Function(4.5, make_unit_map([:x, :y] .=> [PE_Unit(1.0,2.0,3), PE_Unit(1.0,3.0,2)]))
+mfun3 = PE_Function(3.0, make_unit_map([:z, :y] .=> [ PE_Unit(1.0,3.0,2), PE_Unit(1.0,1.0,1)]))
+mfun4 = PE_Function(6.0, make_unit_map([:x, :y] .=> [PE_Unit(0.0,1.0,1), PE_Unit(0.0,2.0,4)]))
+mfun5 = PE_Function(6.0, make_unit_map([:x, :z] .=> [PE_Unit(0.0,1.0,1), PE_Unit(0.0,2.0,2)]))
+mfun6 = PE_Function(18.0, make_unit_map([:x, :y, :z] .=> [PE_Unit(0.0,Date(2015,1,1),4), PE_Unit(0.0,1.0,1), PE_Unit(0.0,Date(2016,1,1),2)]))
 
 mSumFunction1 = Sum_Of_Functions([mfun1, mfun2])
 mSumFunction2 = Sum_Of_Functions([mSumFunction1, mfun3])

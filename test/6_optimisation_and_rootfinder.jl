@@ -10,7 +10,7 @@ quadratic   = PE_Unit(0.0,1.0,2)
 exponential = PE_Unit(2.0,2.0,0)
 higher      = PE_Unit(2.0,2.0,2)
 
-f = PE_Function(1.8, Dict([:w, :x, :y, :z] .=> [linear, quadratic, exponential, higher]))
+f = PE_Function(1.8, make_unit_map([:w, :x, :y, :z] .=> [linear, quadratic, exponential, higher]))
 
 degree = 2
 dimensions = underlying_dimensions(f)

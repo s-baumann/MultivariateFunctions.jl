@@ -29,7 +29,7 @@ will be one derivative with respect to x and 2 with respect to y.
 function derivative(f::PE_Function, derivs::Dict{Symbol,Int})
     # Should always return a Sum_Of_Functions or a PE_Function.
     dims = keys(derivs)
-    fdims = keys(f.units_)
+    fdims = Set(first(p) for p in f.units_)
 
     extra_dims = setdiff(dims, fdims)
     if length(extra_dims) > 0 && maximum(get.(Ref(derivs), [extra_dims...], 0)) >= 1
@@ -37,7 +37,7 @@ function derivative(f::PE_Function, derivs::Dict{Symbol,Int})
     end
     active_dims = [d for d in dims if derivs[d] > 0]
     dims_dict = Dict{Symbol,Array{Tuple{Float64,PE_Unit},1}}()
-    remaining_units = Dict{Symbol,PE_Unit}()
+    remaining_units = UnitMap()
     for (k, unit) in f.units_
         if k in active_dims
             num_derivs = derivs[k]
@@ -47,7 +47,7 @@ function derivative(f::PE_Function, derivs::Dict{Symbol,Int})
             end
             dims_dict[k] = der
         else
-            remaining_units[k] = unit
+            push!(remaining_units, k => unit)
         end
     end
     for dimen in active_dims
@@ -55,7 +55,7 @@ function derivative(f::PE_Function, derivs::Dict{Symbol,Int})
             dims_dict[dimen] = Array{Tuple{Float64,PE_Unit},1}([(0.0, PE_Unit())])
         end
     end
-    array_of_tups = [Dict(active_dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),active_dims)...))...,)]
+    array_of_tups = [TupleUnitMap(active_dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),active_dims)...))...,)]
     array_of_pes = PE_Function.(1.0, array_of_tups)
     remaining_dims = PE_Function(f.multiplier_, remaining_units)
     final_result = remaining_dims .* array_of_pes
@@ -302,25 +302,25 @@ end
 
 function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Symbol, right::Symbol)# Intentially changing name so this is not exported.
     converted = (collect(Iterators.product(((indef,))...))...,)
-    rights = [Dict{Symbol,Tuple{Float64,PE_Unit}}([right] .=> val) for val in converted]
-    lefts  = [Dict{Symbol,Tuple{Float64,PE_Unit}}([left] .=> val) for val in converted]
+    rights = [TupleUnitMap([right] .=> val) for val in converted]
+    lefts  = [TupleUnitMap([left] .=> val) for val in converted]
     return Sum_Of_Functions(PE_Function.(mult, rights)) - Sum_Of_Functions(PE_Function.(mult, lefts))
 end
 function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Float64, right::Symbol)# Intentially changing name so this is not exported.
     converted = (collect(Iterators.product(((indef,))...))...,)
-    rights = [Dict{Symbol,Tuple{Float64,PE_Unit}}([right] .=> val) for val in converted]
-    lefts  = [Dict{Symbol,Tuple{Float64,PE_Unit}}([:left] .=> val) for val in converted]
+    rights = [TupleUnitMap([right] .=> val) for val in converted]
+    lefts  = [TupleUnitMap([:left] .=> val) for val in converted]
     return Sum_Of_Functions(PE_Function.(mult, rights)) - sum(evaluate.(PE_Function.(mult, lefts), Ref(Dict{Symbol,Float64}(:left => left))))
 end
 function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Symbol, right::Float64)# Intentially changing name so this is not exported.
     converted = (collect(Iterators.product(((indef,))...))...,)
-    rights = [Dict{Symbol,Tuple{Float64,PE_Unit}}([:right] .=> val) for val in converted]
-    lefts  = [Dict{Symbol,Tuple{Float64,PE_Unit}}([left] .=> val) for val in converted]
+    rights = [TupleUnitMap([:right] .=> val) for val in converted]
+    lefts  = [TupleUnitMap([left] .=> val) for val in converted]
     return evaluate.(Sum_Of_Functions(PE_Function.(mult, rights)), Ref(Dict{Symbol,Float64}(:right => right))   ) - Sum_Of_Functions(PE_Function.(mult, lefts))
 end
 function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Float64, right::Float64)# Intentially changing name so this is not exported.
     converted = (collect(Iterators.product(((indef,))...))...,)
-    converted_again = [Dict{Symbol,Tuple{Float64,PE_Unit}}([default_symbol] .=> val) for val in converted]
+    converted_again = [TupleUnitMap([default_symbol] .=> val) for val in converted]
     funcs = Sum_Of_Functions(PE_Function.(mult, converted_again))
     return evaluate.(funcs, right) - evaluate.(funcs, left)
 end
@@ -343,7 +343,7 @@ function integral(f::PE_Function, limits::IntegrationLimitDict)
         end
         return volume_of_cube * f.multiplier_
     end
-    remaining_units = Dict{Symbol,PE_Unit}()
+    remaining_units = UnitMap()
     result_by_dimension = Union{Float64,Sum_Of_Functions,PE_Function}[]
     limit_keys = Set(keys(limits))
     for (k, unit) in f.units_
@@ -354,12 +354,12 @@ function integral(f::PE_Function, limits::IntegrationLimitDict)
             result_of_applying_limits = apply_limits(1.0, indef, left_, right_)
             push!(result_by_dimension, result_of_applying_limits)
         else
-            remaining_units[k] = unit
+            push!(remaining_units, k => unit)
         end
     end
     # Handle limit dimensions not present in units
     for dimen in keys(limits)
-        if !haskey(f.units_, dimen)
+        if !unit_haskey(f.units_, dimen)
             f_unit = PE_Unit()
             indef  = indefinite_integral(f_unit)
             result_of_applying_limits = apply_limits(1.0, indef, limits[dimen][1], limits[dimen][2])

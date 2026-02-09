@@ -45,7 +45,7 @@ all_passed &= approx_eq(integral(f2, 1.0, 4.0), 57.63378140676127)
 unit_x = PE_Unit(0.5, 1.0, 2)
 unit_y = PE_Unit(0.0, 0.0, 3)
 unit_z = PE_Unit(-0.3, 2.0, 1)
-f_multi = PE_Function(2.5, Dict{Symbol,PE_Unit}(:x => unit_x, :y => unit_y, :z => unit_z))
+f_multi = PE_Function(2.5, make_unit_map([:x, :y, :z] .=> [unit_x, unit_y, unit_z]))
 coords = Dict{Symbol,Float64}(:x => 3.0, :y => 1.5, :z => 4.0)
 
 all_passed &= approx_eq(evaluate(f_multi, coords), 100.69816709078574)

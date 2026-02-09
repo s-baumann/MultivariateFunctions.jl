@@ -9,12 +9,12 @@ fun6 = PE_Unit(0.0,1.0,1)
 fun7 = PE_Unit(0.0,2.0,4)
 fun8 = PE_Unit(0.0,2.0,2)
 
-mfun1 = PE_Function(1.8, Dict(Symbol.(["x", "y", "z"]) .=> [fun1, fun2, fun3]))
+mfun1 = PE_Function(1.8, make_unit_map(Symbol.(["x", "y", "z"]) .=> [fun1, fun2, fun3]))
 abs(mfun1.multiplier_ - 1.2*1.5) < 1e-10
-mfun2 = PE_Function(4.5, Dict(Symbol.(["x", "y"]) .=> [fun3, fun4]))
-mfun3 = PE_Function(3.0, Dict(Symbol.(["z", "y"]) .=> [fun4, fun1]))
-mfun4 = PE_Function(6.0, Dict(Symbol.(["x", "y"]) .=> [fun6, fun7]))
-mfun5 = PE_Function(6.0, Dict(Symbol.(["x", "z"]) .=> [fun6, fun8]))
+mfun2 = PE_Function(4.5, make_unit_map(Symbol.(["x", "y"]) .=> [fun3, fun4]))
+mfun3 = PE_Function(3.0, make_unit_map(Symbol.(["z", "y"]) .=> [fun4, fun1]))
+mfun4 = PE_Function(6.0, make_unit_map(Symbol.(["x", "y"]) .=> [fun6, fun7]))
+mfun5 = PE_Function(6.0, make_unit_map(Symbol.(["x", "z"]) .=> [fun6, fun8]))
 
 msum = mfun5 + mfun4
 

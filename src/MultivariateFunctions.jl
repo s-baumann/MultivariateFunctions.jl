@@ -17,6 +17,8 @@ export years_between, years_from_global_base, period_length
 include("0_structs_and_generic_reversals.jl")
 export MultivariateFunction, PE_Function, Sum_Of_Functions, Piecewise_Function
 export Sum_Of_Piecewise_Functions, PE_Unit
+export UnitMap, BaseMap, TupleUnitMap, make_unit_map, make_base_map
+export unit_get, unit_haskey, unit_keys
 export change_base, convert_to_linearly_rescale_inputs
 export evaluate, rebadge, underlying_dimensions, convert, ≂
 include("1_algebra.jl")

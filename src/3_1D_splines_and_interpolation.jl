@@ -32,9 +32,9 @@ function create_quadratic_spline(schum::Schumaker; dim_name::Symbol = default_sy
     number_of_intervals = size(coefficients)[1]
     funcs_ = Array{Sum_Of_Functions,1}(undef, number_of_intervals)
     for i in 1:number_of_intervals
-        quadratic = PE_Function(coefficients[i,1], Dict{Symbol,PE_Unit}(dim_name => PE_Unit(0.0, starts_[i], 2)))
-        linear    = PE_Function(coefficients[i,2], Dict{Symbol,PE_Unit}(dim_name => PE_Unit(0.0, starts_[i], 1)))
-        constant  = PE_Function(coefficients[i,3], Dict{Symbol,PE_Unit}(dim_name => PE_Unit(0.0, 0.0       , 0)))
+        quadratic = PE_Function(coefficients[i,1], UnitMap([dim_name => PE_Unit(0.0, starts_[i], 2)]))
+        linear    = PE_Function(coefficients[i,2], UnitMap([dim_name => PE_Unit(0.0, starts_[i], 1)]))
+        constant  = PE_Function(coefficients[i,3], UnitMap([dim_name => PE_Unit(0.0, 0.0       , 0)]))
         polynomial = Sum_Of_Functions([quadratic, linear, constant])
         funcs_[i] = polynomial
     end
@@ -118,14 +118,14 @@ function create_linear_interpolation(x::Array{Float64,1},y::Array{Float64,1}; di
     coefficient = (y[2] - y[1])/(x[2] - x[1])
     starts_[1] = -Inf
     con = PE_Function(y[1])
-    lin = PE_Function(coefficient,Dict{Symbol,PE_Unit}(dim_name => PE_Unit(0.0, x[1], 1)))
+    lin = PE_Function(coefficient, UnitMap([dim_name => PE_Unit(0.0, x[1], 1)]))
     funcs_[1]  = con + lin
     if len > 2
         for i in 2:(len-1)
             starts_[i] = x[i]
             coefficient = (y[i+1] - y[i])/(x[i+1] - x[i])
             con = PE_Function(y[i])
-            lin = PE_Function(coefficient,Dict{Symbol,PE_Unit}(dim_name => PE_Unit(0.0, x[i], 1)))
+            lin = PE_Function(coefficient, UnitMap([dim_name => PE_Unit(0.0, x[i], 1)]))
             funcs_[i]  = con + lin
         end
     end

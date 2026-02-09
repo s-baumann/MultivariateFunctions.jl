@@ -53,10 +53,10 @@ abs(period_length(Dates.Day(0))) < tol
 
 today = Date(2000,1,1)
 pe_func = PE_Function(1.0,2.0,today, 3)
-(pe_func.units_[:default].base_ - years_from_global_base(today))   < tol
+(unit_get(pe_func.units_, :default).base_ - years_from_global_base(today))   < tol
 date_in_2020 = Date(2020,1,1)
 pe_func2 = PE_Function(1.0,2.0,date_in_2020, 3)
-(pe_func2.units_[:default].base_ - years_from_global_base(date_in_2020))   < tol
+(unit_get(pe_func2.units_, :default).base_ - years_from_global_base(date_in_2020))   < tol
 abs(evaluate(pe_func, date_in_2020) - evaluate(pe_func, years_from_global_base(date_in_2020)) ) < tol
 
 #Sum of functions

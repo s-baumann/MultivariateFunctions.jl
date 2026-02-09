@@ -31,28 +31,38 @@ function change_base_(u::PE_Unit, new_base::Float64) # Intentially changing name
 end
 
 """
-    change_base(f::PE_Function, new_bases::Dict{Symbol,Float64})
+    change_base(f::PE_Function, new_bases::BaseMap)
 This function changes the bases in the PE_Units of a PE_Function. This is useful for getting two
 PE_Functions comformable for simpler multiplication. Often a base change means that an array of
 PE_Functions are needed to represent a function. So an Array{PE_Function,1} is returned.
 """
-function change_base(f::PE_Function, new_bases::Dict{Symbol,Float64})
+function change_base(f::PE_Function, new_bases::BaseMap)
     dims_dict = Dict{Symbol,Array{Tuple{Float64,PE_Unit},1}}()
-    dims = keys(f.units_)
+    dims = unit_keys(f.units_)
     for dim in dims
-        if haskey(new_bases, dim)
-            desired_base = new_bases[dim]
-            f_unit = f.units_[dim]
-            f_base = f_unit.base_
+        f_unit = unit_get(f.units_, dim)
+        desired_base = nothing
+        for (s, b) in new_bases
+            if s == dim
+                desired_base = b
+                break
+            end
+        end
+        if desired_base !== nothing
             changed_pes = change_base_(f_unit, desired_base)
             dims_dict[dim] = changed_pes
         else
-            dims_dict[dim] = [(1.0,f.units_[dim])]
+            dims_dict[dim] = [(1.0, f_unit)]
         end
     end
-    array_of_tups = [Dict{Symbol,Tuple{Float64,PE_Unit}}(dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),dims)...))...,)]
+    array_of_tups = [TupleUnitMap(dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),dims)...))...,)]
     array_of_pes = PE_Function.(f.multiplier_, array_of_tups)
     return array_of_pes
+end
+
+# Backwards-compat overload for Dict
+function change_base(f::PE_Function, new_bases::Dict{Symbol,Float64})
+    return change_base(f, make_base_map(collect(new_bases)))
 end
 
 function *(u1::PE_Unit,u2::PE_Unit)
@@ -92,7 +102,11 @@ end
    A Multivariate can be multiplied by a scalar. This does not change the type of any MultivariateFunction.
 """
 function *(f::PE_Function, number::Float64)
-    return PE_Function(f.multiplier_*number, f.units_)
+    m = f.multiplier_ * number
+    if m ≂ 0.0
+        return PE_Function(0.0)
+    end
+    return PE_Function(Val(:unsafe), m, f.units_, f.units_hash)
 end
 """
    /(f::MultivariateFunction,number::Float64)
@@ -206,9 +220,7 @@ function *(f1::PE_Function,f2::PE_Function)
     elseif (length(f2.units_) == 0)
         return f2.multiplier_ * f1
     else
-        f1_bases = get_bases(f1)
-        f2_bases = get_bases(f2)
-        min_bases = merge(min, f1_bases, f2_bases)
+        min_bases = base_merge_min(f1.units_, f2.units_)
         f1_rebase = change_base(f1, min_bases)
         f2_rebase = change_base(f2, min_bases)
         L1 = length(f1_rebase)
@@ -217,7 +229,7 @@ function *(f1::PE_Function,f2::PE_Function)
             f1_ = f1_rebase[1]
             f2_ = f2_rebase[1]
             new_mult = f1_.multiplier_ * f2_.multiplier_
-            return PE_Function(new_mult, merge(*, f1_.units_, f2_.units_ ))
+            return PE_Function(new_mult, unit_merge_multiply(f1_.units_, f2_.units_))
         else
             PEs = Array{PE_Function,1}()
             for f in f1_rebase
@@ -261,7 +273,7 @@ function -(f::Sum_Of_Functions, number::Float64)
     return +(f, -number)
 end
 function *(f::Sum_Of_Functions, number::Float64)
-    return Sum_Of_Functions(f.functions_ .* number)
+    return Sum_Of_Functions(Val(:unsafe), f.functions_ .* number)
 end
 function /(f::Sum_Of_Functions, number::Float64)
     return *(f, 1/number )
@@ -561,17 +573,20 @@ function convert_to_linearly_rescale_inputs(f::PE_Function, alpha_beta::Dict{Sym
         return f
     end
     mult = f.multiplier_
-    final_units = Dict{Symbol,PE_Unit}()
-    for dd in setdiff(keys(f.units_), keys(alpha_beta))
-        final_units[dd] = f.units_[dd]
+    final_units = UnitMap()
+    for (dd, unit) in f.units_
+        if !haskey(alpha_beta, dd)
+            push!(final_units, dd => unit)
+        end
     end
     for dim in keys(alpha_beta)
-        if haskey(f.units_, dim)
-            mm, unit = convert_to_linearly_rescale_inputs(f.units_[dim], alpha_beta[dim][1], alpha_beta[dim][2])
-            final_units[dim] = unit
+        if unit_haskey(f.units_, dim)
+            mm, unit = convert_to_linearly_rescale_inputs(unit_get(f.units_, dim), alpha_beta[dim][1], alpha_beta[dim][2])
+            push!(final_units, dim => unit)
             mult = mult * mm
         end
     end
+    sort!(final_units; by=first)
     return PE_Function(mult, final_units)
 end
 function convert_to_linearly_rescale_inputs(f::Sum_Of_Functions, alpha_beta::Dict{Symbol,Tuple{Float64,Float64}})

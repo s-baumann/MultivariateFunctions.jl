@@ -3,6 +3,17 @@ import Base.sort, Base.convert
 import SchumakerSpline.evaluate
 using Dates
 abstract type MultivariateFunction end
+
+## Equivalence (moved to top so PE_Unit constructor can use ≂)
+const tol = 100*eps()
+"""
+    ≂
+This tests whether two structs are close after allowing for numerical tolerance.
+"""
+function ≂(a::Float64,b::Float64)
+    return abs(a-b) < tol
+end
+
 """
     PE_Unit(b_::Float64, base_::Float64, d_::Int)
     PE_Unit(b_::Float64, base_::Date, d_::Int)
@@ -43,12 +54,102 @@ end
 
 const default_symbol = :default
 
+## Type aliases for sorted-vector maps
+const UnitMap = Vector{Pair{Symbol,PE_Unit}}
+const BaseMap = Vector{Pair{Symbol,Float64}}
+const TupleUnitMap = Vector{Pair{Symbol,Tuple{Float64,PE_Unit}}}
+
+function make_unit_map(pairs)::UnitMap
+    v = collect(Pair{Symbol,PE_Unit}, pairs)
+    sort!(v; by=first)
+    return v
+end
+
+function make_base_map(pairs)::BaseMap
+    v = collect(Pair{Symbol,Float64}, pairs)
+    sort!(v; by=first)
+    return v
+end
+
+function unit_get(v::UnitMap, k::Symbol)::PE_Unit
+    for (sym, unit) in v
+        sym == k && return unit
+    end
+    throw(KeyError(k))
+end
+
+function unit_haskey(v::UnitMap, k::Symbol)::Bool
+    for (sym, _) in v
+        sym == k && return true
+    end
+    return false
+end
+
+unit_keys(v::UnitMap) = Symbol[first(p) for p in v]
+
+function unit_filter_nontrivial(v::UnitMap)::UnitMap
+    return filter(p -> !((p.second.b_ ≂ 0.0) && (p.second.d_ == 0)), v)
+end
+
+function unit_merge_multiply(v1::UnitMap, v2::UnitMap)::UnitMap
+    result = UnitMap()
+    i, j = 1, 1
+    while i <= length(v1) && j <= length(v2)
+        s1, s2 = first(v1[i]), first(v2[j])
+        if s1 == s2
+            push!(result, s1 => v1[i].second * v2[j].second)
+            i += 1; j += 1
+        elseif isless(s1, s2)
+            push!(result, v1[i]); i += 1
+        else
+            push!(result, v2[j]); j += 1
+        end
+    end
+    append!(result, @view v1[i:end])
+    append!(result, @view v2[j:end])
+    return result
+end
+
+function base_merge_min(v1::UnitMap, v2::UnitMap)::BaseMap
+    result = BaseMap()
+    i, j = 1, 1
+    while i <= length(v1) && j <= length(v2)
+        s1, s2 = first(v1[i]), first(v2[j])
+        if s1 == s2
+            push!(result, s1 => min(v1[i].second.base_, v2[j].second.base_))
+            i += 1; j += 1
+        elseif isless(s1, s2)
+            push!(result, s1 => v1[i].second.base_); i += 1
+        else
+            push!(result, s2 => v2[j].second.base_); j += 1
+        end
+    end
+    while i <= length(v1)
+        push!(result, first(v1[i]) => v1[i].second.base_); i += 1
+    end
+    while j <= length(v2)
+        push!(result, first(v2[j]) => v2[j].second.base_); j += 1
+    end
+    return result
+end
+
+function _hash_units(units::UnitMap)::UInt64
+    h = UInt64(0x1a2b3c4d5e6f7890)
+    for (sym, unit) in units
+        h = hash(sym, h)
+        h = hash(unit.b_, h)
+        h = hash(unit.base_, h)
+        h = hash(unit.d_, h)
+    end
+    return h
+end
+
 """
-    PE_Function(multiplier_::Float64, functions_::Dict{Symbol,PE_Unit})
+    PE_Function(multiplier_::Float64, units_::UnitMap)
 
 This is the main constructor for a PE Function. The functional form of the function is the multiplier multiplied by all PE_Units.
 
-For instance the PE_Function created by PE_Function(6.0, Dict([:x, :y] .=> [PE_Unit(1.0,1.0,1), PE_Unit(0.0,2.0,4)]))
+For instance the PE_Function created by PE_Function(6.0, make_unit_map([:x, :y] .=> [PE_Unit(1.0,1.0,1), PE_Unit(0.0,2.0,4)]))
 has a functional form of 6 (x-1) exp(x-1) (y-2)^4
 
 The following convenience functions create a PE_Function where there is only one variable (with a symbol :default).
@@ -59,48 +160,50 @@ The following convenience function creates a PE_Function where there are no vari
 """
 struct PE_Function <: MultivariateFunction
     multiplier_::Float64
-    units_::Dict{Symbol,PE_Unit}
+    units_::UnitMap
+    units_hash::UInt64
     function PE_Function(num::Float64 = 0.0)
-        return new(num,Dict{Symbol,PE_Unit}())
+        empty = UnitMap()
+        return new(num, empty, _hash_units(empty))
     end
-    function PE_Function(multiplier_::Float64, units_::Dict{Symbol,PE_Unit})
-        for k in keys(units_)
-            if (units_[k].b_ ≂ 0.0) && (units_[k].d_ == 0)
-                pop!(units_, k)
-            end
-        end
+    function PE_Function(multiplier_::Float64, units_::UnitMap)
+        clean = unit_filter_nontrivial(units_)
         if multiplier_ ≂ 0.0
-            return PE_Function(0.0)
+            empty = UnitMap()
+            return new(0.0, empty, _hash_units(empty))
         end
-        return new(multiplier_, units_)
+        return new(multiplier_, clean, _hash_units(clean))
     end
-    function PE_Function(multiplier_::Float64, units_::Dict{Symbol,Tuple{Float64,PE_Unit}})
-        new_mult = multiplier_
-        new_dict = Dict{Symbol,PE_Unit}()
-        for k in keys(units_)
-            new_mult    = new_mult * units_[k][1]
-            new_dict[k] = units_[k][2]
-        end
-        return PE_Function(new_mult, new_dict)
-    end
-    function PE_Function(multiplier_::Float64,b_::Float64, base_::Float64, d_::Int)
+    function PE_Function(multiplier_::Float64, b_::Float64, base_::Float64, d_::Int)
         unit = PE_Unit(b_, base_, d_)
-        units_ = Dict{Symbol,PE_Unit}(default_symbol .=> [unit])
+        units_ = UnitMap([default_symbol => unit])
         return PE_Function(multiplier_, units_)
     end
-    function PE_Function(multiplier_::Float64,b_::Float64, base_::Date, d_::Int)
+    function PE_Function(multiplier_::Float64, b_::Float64, base_::Date, d_::Int)
         base_as_float = years_from_global_base(base_)
         return PE_Function(multiplier_, b_, base_as_float, d_)
     end
+    function PE_Function(::Val{:unsafe}, multiplier_::Float64, units_::UnitMap, h::UInt64)
+        return new(multiplier_, units_, h)
+    end
 end
+
+# Outer constructor for TupleUnitMap (used by change_base, derivative, apply_limits)
+function PE_Function(multiplier_::Float64, units_tuples::TupleUnitMap)
+    new_mult = multiplier_
+    pairs = UnitMap()
+    for (sym, (m, unit)) in units_tuples
+        new_mult *= m
+        push!(pairs, sym => unit)
+    end
+    sort!(pairs; by=first)
+    return PE_Function(new_mult, pairs)
+end
+
 Base.broadcastable(e::PE_Function) = Ref(e)
 
-function get_bases(f::PE_Function)
-    dic = Dict{Symbol,Float64}()
-    for k in keys(f.units_)
-        dic[k] = f.units_[k].base_
-    end
-    return dic
+function get_bases(f::PE_Function)::BaseMap
+    return BaseMap([sym => unit.base_ for (sym, unit) in f.units_])
 end
 
 """
@@ -108,15 +211,14 @@ end
     can be used to change the names of the variables in a MultivariateFunction.
 """
 function rebadge(f::PE_Function, mapping::Dict{Symbol,Symbol})
-    units_ = Dict{Symbol,PE_Unit}()
+    new_units = UnitMap()
     for (k, unit) in f.units_
-        if haskey(mapping, k)
-            units_[mapping[k]] = unit
-        else
-            units_[k] = unit
-        end
+        new_k = get(mapping, k, k)
+        push!(new_units, new_k => unit)
     end
-    return PE_Function(f.multiplier_, units_)
+    sort!(new_units; by=first)
+    h = _hash_units(new_units)
+    return PE_Function(Val(:unsafe), f.multiplier_, new_units, h)
 end
 
 function rebadge(f::MultivariateFunction, new_symbol::Symbol)
@@ -139,12 +241,12 @@ end
 """
 function evaluate(f::PE_Function, coordinates::Dict{Symbol,Float64})
     val = f.multiplier_
-    remaining_units = Dict{Symbol,PE_Unit}()
+    remaining_units = UnitMap()
     for (k, unit) in f.units_
         if haskey(coordinates, k)
             val = val * evaluate(unit, coordinates[k])
         else
-            remaining_units[k] = unit
+            push!(remaining_units, k => unit)
         end
     end
     if length(remaining_units) == 0
@@ -162,7 +264,7 @@ function underlying_dimensions(a::Missing)
     return Set{Symbol}()
 end
 function underlying_dimensions(a::PE_Function)
-    return Set(keys(a.units_))
+    return Set(first(p) for p in a.units_)
 end
 
 function evaluate(f::MultivariateFunction, coordinate::Float64; dim_name::Symbol = default_symbol)
@@ -183,40 +285,50 @@ The constructors also remove zero multiplier PE_Functions.
 struct Sum_Of_Functions <: MultivariateFunction
     functions_::Array{PE_Function,1}
     function Sum_Of_Functions(funs::Array{PE_Function,1})
-        # This is O((n^2)/2). Ideally I could get O(n).
         functions = filter(p -> !(p.multiplier_ ≂ 0.0), funs)
         len = length(functions)
         if len == 0
-            return new(Array{PE_Function,1}())
+            return new(PE_Function[])
         end
-        equiv_class = Array{Int,1}(undef,len)
-        equiv_class .= 0
-        next_class = 1
-        for i in 1:(len-1)
-            f1 = functions[i]
-            if equiv_class[i] == 0
-                equiv_class[i] = next_class
-                next_class += 1
-                for j in (i+1):(len)
-                    if equiv_class[j] == 0
-                        f2 = functions[j]
-                        if f1.units_ ≂ f2.units_
-                            equiv_class[j] = equiv_class[i]
-                        end
+        result_mults = Float64[]
+        result_units = UnitMap[]
+        result_hashes = UInt64[]
+        bucket = Dict{UInt64, Vector{Int}}()
+        for f in functions
+            h = f.units_hash
+            merged = false
+            if haskey(bucket, h)
+                for idx in bucket[h]
+                    if result_units[idx] ≂ f.units_
+                        result_mults[idx] += f.multiplier_
+                        merged = true
+                        break
                     end
                 end
             end
+            if !merged
+                push!(result_mults, f.multiplier_)
+                push!(result_units, f.units_)
+                push!(result_hashes, h)
+                new_idx = length(result_mults)
+                if haskey(bucket, h)
+                    push!(bucket[h], new_idx)
+                else
+                    bucket[h] = [new_idx]
+                end
+            end
         end
-        classes = unique(equiv_class)
-        len = length(classes)
-        functions_ = Array{PE_Function,1}(undef,len)
-        for i in 1:len
-            funcs = functions[equiv_class .== classes[i]]
-            mult  = (p->p.multiplier_).(funcs)
-            units = funcs[1].units_
-            functions_[i] = PE_Function(sum(mult), units)
+        functions_ = PE_Function[]
+        for i in eachindex(result_mults)
+            if !(result_mults[i] ≂ 0.0)
+                push!(functions_, PE_Function(Val(:unsafe), result_mults[i],
+                      result_units[i], result_hashes[i]))
+            end
         end
         return new(functions_)
+    end
+    function Sum_Of_Functions(::Val{:unsafe}, funs::Array{PE_Function,1})
+        return new(funs)
     end
     function Sum_Of_Functions(f::PE_Function)
         return new([f])
@@ -610,15 +722,7 @@ end
 
 
 
-## Equivalence
-const tol = 100*eps()
-"""
-    ≂
-This tests whether two structs are close after allowing for numerical tolerance.
-"""
-function ≂(a::Float64,b::Float64)
-    return abs(a-b) < tol
-end
+## Remaining ≂ overloads
 function ≂(a::Missing,b::Missing)
     return true
 end
@@ -638,25 +742,18 @@ function ≂(a::PE_Unit,b::PE_Unit)
         return false
     end
 end
-function ≂(a::Dict{Symbol,PE_Unit},b::Dict{Symbol,PE_Unit})
-    if keys(a) != keys(b)
-        return false
-    else
-        for k in keys(a)
-            if !(a[k] ≂ b[k])
-                return false
-            end
-        end
+function ≂(a::UnitMap, b::UnitMap)
+    length(a) != length(b) && return false
+    for i in eachindex(a)
+        first(a[i]) != first(b[i]) && return false
+        !(a[i].second ≂ b[i].second) && return false
     end
     return true
 end
 function ≂(a::PE_Function,b::PE_Function)
-    if a.multiplier_  ≂ b.multiplier_
-        if a.units_ ≂ b.units_
-            return true
-        end
-    end
-    return false
+    a.units_hash != b.units_hash && return false
+    a.multiplier_ ≂ b.multiplier_ || return false
+    return a.units_ ≂ b.units_
 end
 
 
@@ -702,12 +799,12 @@ function evaluate(f::PE_Function, coordinates::DataFrame)
         return result
     end
     col_names = Set(Symbol.(names(coordinates)))
-    remaining_units = Dict{Symbol,PE_Unit}()
+    remaining_units = UnitMap()
     for (k, unit) in f.units_
         if k in col_names
             result .= result .* evaluate.(Ref(unit), coordinates[!, k])
         else
-            remaining_units[k] = unit
+            push!(remaining_units, k => unit)
         end
     end
     if length(remaining_units) == 0

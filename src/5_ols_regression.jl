@@ -7,13 +7,13 @@ is to be predicted by inputting a symbol y. you also put in an array of what x_v
 function create_saturated_ols_approximation(dd::DataFrame, y::Symbol, x_variables::Array{Symbol,1}, degree::Int; intercept::Bool = true,  bases::Dict{Symbol,Float64} = Dict{Symbol,Float64}(x_variables .=> repeat([0.0],length(x_variables))))
     model = Array{PE_Function,1}()
     if intercept
-        push!(model, PE_Function(1.0,Dict{Symbol,PE_Unit}()))
+        push!(model, PE_Function(1.0))
     end
     if degree > 0
         number_of_variables = length(x_variables)
         linear_set = Array{PE_Function,1}(undef, number_of_variables)
         for i in 1:length(x_variables)
-            linear_set[i] = PE_Function(1.0,Dict{Symbol,PE_Unit}(x_variables[i] => PE_Unit(0.0,bases[x_variables[i]],1) ))
+            linear_set[i] = PE_Function(1.0, UnitMap([x_variables[i] => PE_Unit(0.0,bases[x_variables[i]],1)]))
         end
         higher_order_terms = Array{Array{PE_Function,1},1}(undef,degree)
         higher_order_terms[1] = linear_set

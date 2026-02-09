@@ -35,8 +35,8 @@ abs(evaluate(sum0, 5.0)) < tol
 
 coordinates = Dict(Symbol.(["x", "y", "z", "w"]) .=> [0.5, 2.0, 3.5, 4.0])
 
-f = PE_Function(2.4, Dict{Symbol,PE_Unit}([:x,:y,:z,:w] .=> [ PE_Unit(2.0,3.0,2), PE_Unit(2.0,3.0,2) , PE_Unit(2.0,3.0,2), PE_Unit(2.0,3.0,2)   ]))
-new_bases = Dict{Symbol,Float64}([:x,:y,:z, :q] .=> [ 2.8,3.0,1.0,3.0  ])
+f = PE_Function(2.4, make_unit_map([:x,:y,:z,:w] .=> [ PE_Unit(2.0,3.0,2), PE_Unit(2.0,3.0,2) , PE_Unit(2.0,3.0,2), PE_Unit(2.0,3.0,2)   ]))
+new_bases = make_base_map([:x,:y,:z, :q] .=> [ 2.8,3.0,1.0,3.0  ])
 converted_f = change_base(f,new_bases)
 abs(sum(evaluate.(converted_f, Ref(coordinates))) - evaluate(f, coordinates)) < tol
 
@@ -103,22 +103,22 @@ evaluate(sum4, 5.0) == evaluate(f1 + f2 + f3, 5.0)
 abs(evaluate(sum4, 5.0) - 2*evaluate(f3, 5.0) - evaluate(f1 + f2 - f3, 5.0)) < 0.001
 
 ### Changing of base
-f1_unchanged = change_base(f1, Dict{Symbol,Float64}(:default => 3.0))
-abs(f1.units_[:default].base_ - f1_unchanged[1].units_[:default].base_) < tol
+f1_unchanged = change_base(f1, make_base_map([:default] .=> [3.0]))
+abs(unit_get(f1.units_, :default).base_ - unit_get(f1_unchanged[1].units_, :default).base_) < tol
 
-f1_changed = change_base(f1, Dict{Symbol,Float64}(:default => 4.0))
-abs(f1_changed[1].units_[:default].base_ - 4.0) < tol
-abs(f1_changed[3].units_[:default].base_ - 4.0) < tol
+f1_changed = change_base(f1, make_base_map([:default] .=> [4.0]))
+abs(unit_get(f1_changed[1].units_, :default).base_ - 4.0) < tol
+abs(unit_get(f1_changed[3].units_, :default).base_ - 4.0) < tol
 abs(sum(evaluate.(f1_changed, 5.0)) - f1_test_result) < 100*tol # Changing bases should not change this.
 
-f1_changed_again = change_base(f1, Dict{Symbol,Float64}(:default => -1.0))
-abs(f1_changed_again[1].units_[:default].base_ + 1.0) < tol
-abs(f1_changed_again[3].units_[:default].base_ + 1.0) < tol
+f1_changed_again = change_base(f1, make_base_map([:default] .=> [-1.0]))
+abs(unit_get(f1_changed_again[1].units_, :default).base_ + 1.0) < tol
+abs(unit_get(f1_changed_again[3].units_, :default).base_ + 1.0) < tol
 abs(sum(evaluate.(f1_changed_again, 5.0)) - f1_test_result) < 1000000*tol # Changing bases should not change this.
 
-f3_changed = change_base(f3, Dict{Symbol,Float64}(:default => 11.0))
-abs(f3_changed[1].units_[:default].base_ - 11.0) < tol
-abs(f3_changed[3].units_[:default].base_ - 11.0) < tol
+f3_changed = change_base(f3, make_base_map([:default] .=> [11.0]))
+abs(unit_get(f3_changed[1].units_, :default).base_ - 11.0) < tol
+abs(unit_get(f3_changed[3].units_, :default).base_ - 11.0) < tol
 abs(sum(evaluate.(f3_changed, 5.0)) - f3_test_result) < 1000000*tol # Changing bases should not change this.
 
 ### multiplication of functions

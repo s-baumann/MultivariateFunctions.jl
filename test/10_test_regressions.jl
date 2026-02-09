@@ -73,12 +73,12 @@ dd[7,:y] = 1.0
 linear    = PE_Unit(0.0,0.0,1)
 quadratic = PE_Unit(0.0,0.0,2)
 # Creating Model
-constant_term = PE_Function(1.0, Dict{Symbol,PE_Unit}())
-x_lin         = PE_Function(1.0, Dict{Symbol,PE_Unit}(:x => linear))
-z_lin         = PE_Function(1.0, Dict{Symbol,PE_Unit}(:z => linear))
-w_lin         = PE_Function(1.0, Dict{Symbol,PE_Unit}(:w => linear))
-w_quad        = PE_Function(1.0, Dict{Symbol,PE_Unit}(:w => quadratic))
-x_lin_z_quad  = PE_Function(1.0, Dict{Symbol,PE_Unit}([:x, :z] .=> [linear, quadratic]))
+constant_term = PE_Function(1.0)
+x_lin         = PE_Function(1.0, UnitMap([:x => linear]))
+z_lin         = PE_Function(1.0, UnitMap([:z => linear]))
+w_lin         = PE_Function(1.0, UnitMap([:w => linear]))
+w_quad        = PE_Function(1.0, UnitMap([:w => quadratic]))
+x_lin_z_quad  = PE_Function(1.0, make_unit_map([:x, :z] .=> [linear, quadratic]))
 model = constant_term + x_lin + z_lin + w_lin + w_quad + x_lin_z_quad
 # Regression and testing
 mod_1, reg_1 = create_ols_approximation(dd, :y, model)
