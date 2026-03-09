@@ -1,16 +1,19 @@
-# Helper for weighted RSS computation
+# Remove element at index without allocating a boolean mask
+_remove_at(arr, i) = vcat(arr[1:i-1], arr[i+1:end])
+
+# Helper for weighted RSS computation (allocation-free)
 function _weighted_rss(residuals::AbstractVector{Float64}, weights::Union{Nothing, Vector{Float64}})
     if weights === nothing
-        return sum(residuals .^ 2)
+        return sum(r -> r^2, residuals)
     else
-        return sum(weights .* residuals .^ 2)
+        return sum(i -> weights[i] * residuals[i]^2, eachindex(residuals))
     end
 end
 
 function add_split_with_step_function(array_of_funcs::Array, ind::Int, split_variable::Symbol, split_point::Float64, removeSplitFunction::Bool)
     basis_function1 = Piecewise_Function( vcat(Sum_Of_Functions([PE_Function(0.0)]), Sum_Of_Functions([PE_Function(1.0)])) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
     basis_function2 = Piecewise_Function( vcat(Sum_Of_Functions([PE_Function(1.0)]), Sum_Of_Functions([PE_Function(0.0)])) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
-    other_functions = array_of_funcs[1:end .!= ind] # ind is the index of the function to split.
+    other_functions = _remove_at(array_of_funcs, ind) # ind is the index of the function to split.
     split_function = array_of_funcs[ind]
     if removeSplitFunction
         return vcat(other_functions, basis_function1 * split_function, basis_function2 * split_function)
@@ -23,7 +26,7 @@ function add_split_with_max_function(array_of_funcs::Array, ind::Int, split_vari
     max_func = Sum_Of_Functions([PE_Function(1.0, UnitMap([split_variable => PE_Unit(0.0,split_point,1)]))])
     basis_function1 = Piecewise_Function( vcat(Sum_Of_Functions([PE_Function(0.0)]), max_func) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
     basis_function2 = Piecewise_Function( vcat(-1 * max_func, Sum_Of_Functions([PE_Function(0.0)])) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
-    other_functions = array_of_funcs[1:end .!= ind] # ind is the index of the function to split.
+    other_functions = _remove_at(array_of_funcs, ind) # ind is the index of the function to split.
     split_function = array_of_funcs[ind]
     if removeSplitFunction
         return vcat(other_functions, basis_function1 * split_function, basis_function2 * split_function)
@@ -39,7 +42,7 @@ function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::In
     # Pre-compute design matrix columns for basis functions that don't change
     y_vec = dd[!, y]
     if removeSplitFunction
-        unchanged_funcs = array_of_funcs[1:end .!= ind]
+        unchanged_funcs = _remove_at(array_of_funcs, ind)
     else
         unchanged_funcs = array_of_funcs
     end
@@ -55,16 +58,22 @@ function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::In
         new_funcs = model[end-1:end]
         X_new = hcat(evaluate.(new_funcs, Ref(dd))...)
         X = hcat(X_cached, X_new)
-        try
-            if weights === nothing
-                reg = fit(LinearModel, X, y_vec; dropcollinear=true)
-            else
-                reg = fit(LinearModel, X, y_vec; dropcollinear=true, weights=FrequencyWeights(weights))
+        if weights !== nothing
+            # Check if the weighted cross-product matrix is positive definite.
+            # Near-zero weights can make the effective sample degenerate.
+            sqrtW = sqrt.(weights)
+            Xw = sqrtW .* X
+            XtX = Xw' * Xw
+            if det(XtX) ≤ 0.0
+                return Inf
             end
-            return _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
-        catch
-            return Inf
         end
+        if weights === nothing
+            reg = fit(LinearModel, X, y_vec; dropcollinear=true)
+        else
+            reg = fit(LinearModel, X, y_vec; dropcollinear=true, weights=FrequencyWeights(weights))
+        end
+        return _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
     end
     return (opt.minimum, opt.minimizer)
 end
@@ -166,7 +175,7 @@ function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, mo
         best_m = 2
         len = length(array_of_funcs)
         for m in 2:len
-            reduced_array_of_functions = array_of_funcs[1:end .!= m]
+            reduced_array_of_functions = _remove_at(array_of_funcs, m)
             mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions; weights=weights)
             new_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
             if new_lof < best_lof
@@ -175,7 +184,7 @@ function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, mo
             end
 
         end
-        array_of_funcs = array_of_funcs[1:end .!= best_m]
+        array_of_funcs = _remove_at(array_of_funcs, best_m)
     end
     updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
     return (model = updated_model, regression = reg)
@@ -190,7 +199,7 @@ function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, mode
         best_lof = Inf
         len = length(array_of_funcs)
         for m in 2:len
-            reduced_array_of_functions = array_of_funcs[1:end .!= m]
+            reduced_array_of_functions = _remove_at(array_of_funcs, m)
             mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions; weights=weights)
             new_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
             if new_lof < best_lof
@@ -200,7 +209,7 @@ function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, mode
 
         end
         if best_lof - previous_best_lof < maximum_increase_in_RSS
-            array_of_funcs = array_of_funcs[1:end .!= best_m]
+            array_of_funcs = _remove_at(array_of_funcs, best_m)
             previous_best_lof = best_lof
         else
             ender = true
@@ -217,7 +226,7 @@ function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Pi
         best_m = 2
         len = length(array_of_funcs)
         for m in 2:len
-            reduced_array_of_functions = array_of_funcs[1:end .!= m]
+            reduced_array_of_functions = _remove_at(array_of_funcs, m)
             mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions; weights=weights)
             new_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
             if new_lof < best_lof
@@ -227,7 +236,7 @@ function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Pi
 
         end
         if best_lof < maximum_RSS
-            array_of_funcs = array_of_funcs[1:end .!= best_m]
+            array_of_funcs = _remove_at(array_of_funcs, best_m)
         else
             ender = true
         end

@@ -142,11 +142,8 @@ function _simplify_model(fun::MultivariateFunction, dd::DataFrame, simplify_to::
     dd_synth[!, synth_y] = evaluate(fun, dd)
 
     if method == :monotonic_mars
-        # For monotonic MARS: use OLS-based backward deletion to select which basis
-        # functions to keep, then re-estimate coefficients with NNLS to preserve monotonicity.
         return _trim_monotonic(fun, dd_synth, synth_y, simplify_to, directions, min_gradient; weights=weights)
     else
-        # For mars and recursive_partitioning: use standard trim
         result = trim_mars_spline(dd_synth, synth_y, fun; final_number_of_functions = simplify_to, weights=weights)
         return result.model
     end
@@ -175,7 +172,7 @@ function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symb
         best_m = 2
         len = length(array_of_funcs)
         for m in 2:len  # never delete the intercept (index 1)
-            reduced = array_of_funcs[1:end .!= m]
+            reduced = _remove_at(array_of_funcs, m)
             X = hcat(evaluate.(reduced, Ref(dd))...)
             coefficients = fit_nnls(X, y_vec; weights=weights)
             new_lof = _weighted_rss(X * coefficients .- y_vec, weights)
@@ -184,7 +181,7 @@ function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symb
                 best_m = m
             end
         end
-        array_of_funcs = array_of_funcs[1:end .!= best_m]
+        array_of_funcs = _remove_at(array_of_funcs, best_m)
     end
 
     # Final NNLS fit with remaining basis functions
