@@ -99,3 +99,56 @@ By default the result is monotone (non-decreasing) which allows flat regions whe
 result = create_monotonic_mars_spline(dd, :y, Set([:x, :z]), 5;
     min_gradient = 0.01)
 ```
+
+## Iterative Fitting with MultivariateFitter
+
+The `MultivariateFitter` allows iterative fitting where each call to `fit!` blends new data with the accumulated model. This is useful for daily signal-to-return mappings.
+
+```
+using MultivariateFunctions
+using DataFrames
+using Random
+using Distributions
+
+Random.seed!(1)
+
+# Create a fitter: 4 basis functions per fit, trim to 8 every 5 fits
+fitter = MultivariateFitter(:mars, Set([:x, :z]);
+    MaxM = 4, simplify_to = 8, simplification_frequency = 5,
+    weight_on_new = 0.5)
+
+# Simulate daily fitting
+for day in 1:10
+    dd = DataFrame()
+    dd[!, :x] = rand(Normal(), 200)
+    dd[!, :z] = rand(Normal(), 200)
+    dd[!, :y] = 2.0 .* max.(0.0, dd[!, :x] .- 0.3) .+ dd[!, :z] .+ rand(Normal(), 200)
+    fit!(fitter, dd, :y)
+end
+
+# Evaluate the accumulated model
+dd_test = DataFrame(x = [1.0, 2.0], z = [0.5, -0.5])
+predictions = evaluate(fitter, dd_test)
+```
+
+## Iterative Fitting with Group Adjustments
+
+The `MultivariateAdjustedFitter` fits a shared shape `f(x)` with per-group affine coefficients `y_g ≈ a_g + b_g * f(x)`:
+
+```
+fitter = MultivariateAdjustedFitter(:mars, Set([:x, :z]);
+    MaxM = 4, weight_on_new = 0.5,
+    coefficient_bounds = ((-2.0, 2.0), (0.1, 3.0)))
+
+dd = DataFrame()
+dd[!, :x] = rand(Normal(), 300)
+dd[!, :z] = rand(Normal(), 300)
+dd[!, :y] = rand(Normal(), 300)
+groups = vcat(fill(:A, 150), fill(:B, 150))
+
+fit!(fitter, dd, :y, groups)
+
+# Group-specific predictions
+predictions_A = evaluate(fitter, dd[1:10, :], :A)
+predictions_B = evaluate(fitter, dd[1:10, :], :B)
+```

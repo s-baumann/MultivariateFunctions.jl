@@ -37,4 +37,6 @@ include("5_ols_regression.jl")
 export create_ols_approximation, create_saturated_ols_approximation
 include("6_HighDimensionalApproximation.jl")
 export create_recursive_partitioning, create_mars_spline, trim_mars_spline, create_monotonic_mars_spline
+include("7_MultivariateFitting.jl")
+export MultivariateFitter, MultivariateAdjustedFitter, fit!
 end

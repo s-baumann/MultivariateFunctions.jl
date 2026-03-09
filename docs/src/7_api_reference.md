@@ -72,3 +72,11 @@ create_monotonic_mars_spline
 create_recursive_partitioning
 trim_mars_spline
 ```
+
+## Iterative Fitting
+
+```@docs
+MultivariateFitter
+MultivariateAdjustedFitter
+fit!
+```
