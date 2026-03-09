@@ -62,3 +62,40 @@ We can also create a MARS approximation spline:
 rp_1, rp_reg_1 = create_mars_spline(dd, y, x_variables, number_of_divisions; rel_tol = 1e-3)
 ```
 Note that the rel\_tol here is the tolerance in the optimisation step for hinges (or divisions in the recursive partitioning case). In most applied cases it generally doesn't matter much if there is a hinge at 1.0006 or at 1.0007 so in most settings this can be set higher than you would generally set the tolerance for a numerical optimiser. For this reason the default value is 1e-02.
+
+## Monotonic MARS Spline
+
+If you need a MARS approximation that is guaranteed to be monotonic in each dimension, use `create_monotonic_mars_spline`. First generate some example data:
+```
+using MultivariateFunctions
+using Random
+using DataFrames
+using Distributions
+using DataStructures
+
+Random.seed!(1)
+nObs = 500
+dd = DataFrame()
+dd[!, :x] = rand(Normal(), nObs)
+dd[!, :z] = rand(Normal(), nObs)
+dd[!, :y] = 3.0 .* max.(0.0, dd[!, :x] .- 0.5) .+ 2.0 .* max.(0.0, dd[!, :z] .+ 1.0) .+ 1.0
+```
+By default all dimensions are monotone increasing:
+```
+result = create_monotonic_mars_spline(dd, :y, Set([:x, :z]), 5; rel_tol = 1e-3)
+monotone_model = result.model
+```
+You can specify directions per dimension. For example, increasing in `:x` and decreasing in `:z`:
+```
+result = create_monotonic_mars_spline(dd, :y, Set([:x, :z]), 5;
+    directions = Dict{Symbol,Symbol}(:x => :increasing, :z => :decreasing))
+```
+The returned named tuple contains the `model` (a `Sum_Of_Piecewise_Functions`), the `coefficients` vector, and the `rss` (residual sum of squares).
+
+Monotonicity is guaranteed by construction: each basis function is a product of non-negative, monotone hinge functions, and all non-intercept coefficients are constrained to be non-negative via NNLS fitting.
+
+By default the result is monotone (non-decreasing) which allows flat regions where the hinge functions are zero. To ensure strict monotonicity (no flat regions), set `min_gradient` to a positive value. This adds a linear term with that slope in every dimension before fitting, so the partial derivative in each dimension is always at least `min_gradient`:
+```
+result = create_monotonic_mars_spline(dd, :y, Set([:x, :z]), 5;
+    min_gradient = 0.01)
+```

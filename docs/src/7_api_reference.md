@@ -68,6 +68,7 @@ create_chebyshev_approximation
 create_ols_approximation
 create_saturated_ols_approximation
 create_mars_spline
+create_monotonic_mars_spline
 create_recursive_partitioning
 trim_mars_spline
 ```

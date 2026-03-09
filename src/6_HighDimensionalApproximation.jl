@@ -240,3 +240,189 @@ function trim_mars_spline(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Func
         error("This should be unreachable code. Please let the developer know if you get this.")
     end
 end
+
+# --- Monotonic MARS ---
+
+function fit_nnls(X::Matrix{Float64}, y_vec::Vector{Float64})
+    n, p = size(X)
+    if p == 0
+        return Float64[]
+    end
+    if p == 1
+        return X \ y_vec
+    end
+    # Separate intercept (column 1, unconstrained) from remaining columns (>= 0).
+    # Center data to analytically eliminate the intercept, then solve NNLS via
+    # coordinate descent on the centered problem.
+    X2 = X[:, 2:end]
+    y_mean = sum(y_vec) / n
+    X2_means = vec(sum(X2, dims=1) ./ n)
+    y_c = y_vec .- y_mean
+    X2_c = X2 .- X2_means'
+    # Coordinate descent NNLS: min ||X2_c * β2 - y_c||² s.t. β2 >= 0
+    p2 = p - 1
+    AtA = X2_c' * X2_c
+    Atb = X2_c' * y_c
+    β2 = zeros(p2)
+    for iter in 1:5000
+        converged = true
+        for j in 1:p2
+            r_j = Atb[j]
+            for k in 1:p2
+                if k != j
+                    r_j -= AtA[j, k] * β2[k]
+                end
+            end
+            new_val = AtA[j, j] > 1e-15 ? max(r_j / AtA[j, j], 0.0) : 0.0
+            if abs(new_val - β2[j]) > 1e-14 * (1 + abs(β2[j]))
+                converged = false
+            end
+            β2[j] = new_val
+        end
+        if converged
+            break
+        end
+    end
+    # Recover intercept
+    β1 = y_mean - sum(X2_means .* β2)
+    return vcat([β1], β2)
+end
+
+function add_split_monotone(array_of_funcs::Array, ind::Int, split_variable::Symbol,
+                            split_point::Float64, direction::Symbol)
+    max_func = Sum_Of_Functions([PE_Function(1.0, UnitMap([split_variable => PE_Unit(0.0, split_point, 1)]))])
+    if direction == :increasing
+        # max(0, x - split_point): zero below split, linear above
+        basis_function = Piecewise_Function(
+            vcat(Sum_Of_Functions([PE_Function(0.0)]), max_func),
+            OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]])
+        )
+    else
+        # max(0, split_point - x): linear below split, zero above
+        basis_function = Piecewise_Function(
+            vcat(-1 * max_func, Sum_Of_Functions([PE_Function(0.0)])),
+            OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]])
+        )
+    end
+    split_function = array_of_funcs[ind]
+    return vcat(array_of_funcs, basis_function * split_function)
+end
+
+function optimise_monotone_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Int,
+                                 split_variable::Symbol, direction::Symbol, rel_tol::Float64)
+    lower_limit = minimum(dd[!, split_variable]) + eps()
+    upper_limit = maximum(dd[!, split_variable]) - eps()
+    y_vec = dd[!, y]
+    X_cached = hcat(evaluate.(array_of_funcs, Ref(dd))...)
+    opt = optimize(lower_limit, upper_limit; rel_tol = rel_tol) do split_point
+        model = add_split_monotone(array_of_funcs, ind, split_variable, split_point, direction)
+        new_func = model[end:end]
+        X_new = hcat(evaluate.(new_func, Ref(dd))...)
+        X = hcat(X_cached, X_new)
+        coefficients = fit_nnls(X, y_vec)
+        return sum((X * coefficients .- y_vec) .^ 2)
+    end
+    return (opt.minimum, opt.minimizer)
+end
+
+"""
+    create_monotonic_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int;
+                                 rel_tol::Float64 = 1e-2,
+                                 directions::Dict{Symbol,Symbol} = Dict{Symbol,Symbol}(),
+                                 min_gradient::Float64 = 0.0)
+
+Creates a MARS spline that is guaranteed to be monotonic in each specified dimension.
+Each basis function uses only forward hinges `max(0, x - t)` (for increasing dimensions) or
+backward hinges `max(0, t - x)` (for decreasing dimensions), and non-intercept coefficients are
+constrained to be non-negative via NNLS fitting. This guarantees the resulting function is monotonic
+in each dimension in the specified direction.
+
+The `directions` argument maps each dimension symbol to either `:increasing` or `:decreasing`.
+If not specified, all dimensions default to `:increasing`.
+
+`MaxM` specifies the total number of basis functions (including the constant intercept).
+Each forward step adds one basis function, so `MaxM - 1` splits are performed.
+
+If `min_gradient` is set to a positive value, a linear term with that slope is added in every
+dimension (with appropriate sign for the direction). This ensures the function is strictly
+increasing (or decreasing) everywhere with at least the specified gradient, eliminating flat
+regions. The MARS basis functions are fit to the residual after removing these linear terms.
+"""
+function create_monotonic_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int;
+                                      rel_tol::Float64 = 1e-2,
+                                      directions::Dict{Symbol,Symbol} = Dict{Symbol,Symbol}(),
+                                      min_gradient::Float64 = 0.0)
+    if isempty(directions)
+        directions = Dict{Symbol,Symbol}(d => :increasing for d in x_variables)
+    end
+    for (dim, dir) in directions
+        if dir ∉ (:increasing, :decreasing)
+            error("Direction for dimension $dim must be :increasing or :decreasing, got :$dir")
+        end
+    end
+    for dim in x_variables
+        if !haskey(directions, dim)
+            error("Direction must be specified for dimension $dim")
+        end
+    end
+    if min_gradient < 0.0
+        error("min_gradient must be non-negative, got $min_gradient")
+    end
+
+    # Build linear floor terms and adjust y if min_gradient > 0
+    linear_funcs = PE_Function[]
+    if min_gradient > 0.0
+        for dim in x_variables
+            sign = directions[dim] == :increasing ? 1.0 : -1.0
+            push!(linear_funcs, PE_Function(sign * min_gradient, UnitMap([dim => PE_Unit(0.0, 0.0, 1)])))
+        end
+    end
+    linear_sum = length(linear_funcs) > 0 ? Sum_Of_Functions(linear_funcs) : nothing
+
+    # Adjust y by subtracting linear floor so MARS fits the residual
+    dd_fit = dd
+    y_fit = y
+    if linear_sum !== nothing
+        dd_fit = copy(dd)
+        dd_fit[!, y] = dd[!, y] .- evaluate(linear_sum, dd)
+        y_fit = y
+    end
+
+    Arr = Array{Sum_Of_Functions,length(x_variables)}(undef, repeat([1], length(x_variables))...)
+    Arr[repeat([1], length(x_variables))...] = Sum_Of_Functions([PE_Function(1.0)])
+    pw_func = Piecewise_Function(Arr, OrderedDict{Symbol,Array{Float64,1}}(x_variables .=> repeat([[-Inf]], length(x_variables))))
+    array_of_funcs = Vector{Piecewise_Function}([pw_func])
+
+    for M in 2:MaxM
+        best_lof = Inf
+        best_m = 1
+        best_dimen = collect(x_variables)[1]
+        best_split = 0.0
+        for m in 1:length(array_of_funcs)
+            underlying = underlying_dimensions(array_of_funcs[m])
+            for dimen in setdiff(x_variables, underlying)
+                lof, spt = optimise_monotone_split(dd_fit, y_fit, array_of_funcs, m, dimen, directions[dimen], rel_tol)
+                if lof < best_lof
+                    best_lof = lof
+                    best_m = m
+                    best_dimen = dimen
+                    best_split = spt
+                end
+            end
+        end
+        array_of_funcs = add_split_monotone(array_of_funcs, best_m, best_dimen, best_split, directions[best_dimen])
+    end
+
+    X = hcat(evaluate.(array_of_funcs, Ref(dd_fit))...)
+    y_vec = dd_fit[!, y_fit]
+    coefficients = fit_nnls(X, y_vec)
+    updated_model = Sum_Of_Piecewise_Functions(array_of_funcs .* coefficients)
+
+    # Add linear floor back to the model
+    if linear_sum !== nothing
+        updated_model = updated_model + linear_sum
+    end
+
+    rss = sum((evaluate(updated_model, dd) .- dd[!, y]) .^ 2)
+    return (model = updated_model, coefficients = coefficients, rss = rss)
+end
