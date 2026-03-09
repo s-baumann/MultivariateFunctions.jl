@@ -16,3 +16,20 @@ Key features:
 * **Blending**: `weight = min(1/(times_through+1), weight_on_new)` controls how much the new fit contributes.
 * **Simplification**: Periodic trimming via `trim_mars_spline` on synthetic data prevents unbounded complexity growth. The `simplify_to` parameter (target basis count after trimming) can be larger than `MaxM` (basis count per daily fit), allowing accumulated models to be richer than any single fit.
 * **MultivariateAdjustedFitter**: Fits a shared shape function `f(x)` with per-group affine adjustments `y_g ≈ a_g + b_g * f(x)`. Useful when multiple groups share the same signal-to-response shape but at different scales.
+* **Callable syntax**: Both fitter types support callable syntax — `fitter(dd)` is equivalent to `evaluate(fitter, dd)`, and `fitter(dd, group)` is equivalent to `evaluate(fitter, dd, group)`.
+
+# Observation Weights
+
+All data-fitting methods support an optional `weights` keyword argument for weighted least squares:
+
+* `create_ols_approximation`
+* `create_saturated_ols_approximation`
+* `create_mars_spline`
+* `create_recursive_partitioning`
+* `create_monotonic_mars_spline`
+* `trim_mars_spline`
+* `fit!` (for both `MultivariateFitter` and `MultivariateAdjustedFitter`)
+
+Weights must be a `Vector{Float64}` with one entry per observation, with all values non-negative. They are interpreted as frequency weights (equivalent to replicating observations). Passing `nothing` (the default) is equivalent to uniform weights.
+
+For the NNLS-based methods (monotonic MARS, monotonic trimming), weights are applied via a square-root scaling transformation to preserve the non-negativity constraints.

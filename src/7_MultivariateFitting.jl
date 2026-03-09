@@ -52,6 +52,9 @@ Create a `MultivariateFitter` initialised with no fitted function.
 * `ols_degree` - Polynomial degree for `:saturated_ols` (default `2`).
 * `directions` - Per-dimension monotonicity directions (default all `:increasing`).
 * `min_gradient` - Minimum gradient for monotonic MARS (default `0.0`).
+
+The fitter supports callable syntax: `fitter(dd)` and `fitter(coordinates)` are
+equivalent to `evaluate(fitter, dd)` and `evaluate(fitter, coordinates)`.
 """
 function MultivariateFitter(method::Symbol, x_variables::Set{Symbol};
                              MaxM::Int = 5,
@@ -90,22 +93,23 @@ end
 # Internal: fit a new function to data using the specified method
 function _fit_new_function(method::Symbol, dd::DataFrame, y::Symbol, x_variables::Set{Symbol},
                            MaxM::Int, rel_tol::Float64, ols_degree::Int,
-                           directions::Dict{Symbol,Symbol}, min_gradient::Float64)
+                           directions::Dict{Symbol,Symbol}, min_gradient::Float64;
+                           weights::Union{Nothing, Vector{Float64}} = nothing)
     if method == :mars
-        result = create_mars_spline(dd, y, x_variables, MaxM; rel_tol = rel_tol)
+        result = create_mars_spline(dd, y, x_variables, MaxM; rel_tol = rel_tol, weights = weights)
         return result.model
     elseif method == :recursive_partitioning
-        result = create_recursive_partitioning(dd, y, x_variables, MaxM; rel_tol = rel_tol)
+        result = create_recursive_partitioning(dd, y, x_variables, MaxM; rel_tol = rel_tol, weights = weights)
         return result.model
     elseif method == :monotonic_mars
         result = create_monotonic_mars_spline(dd, y, x_variables, MaxM;
-                    rel_tol = rel_tol, directions = directions, min_gradient = min_gradient)
+                    rel_tol = rel_tol, directions = directions, min_gradient = min_gradient, weights = weights)
         return result.model
     elseif method == :ols
-        result = create_saturated_ols_approximation(dd, y, collect(x_variables), 1)
+        result = create_saturated_ols_approximation(dd, y, collect(x_variables), 1; weights = weights)
         return result[1]
     elseif method == :saturated_ols
-        result = create_saturated_ols_approximation(dd, y, collect(x_variables), ols_degree)
+        result = create_saturated_ols_approximation(dd, y, collect(x_variables), ols_degree; weights = weights)
         return result[1]
     else
         error("Unknown method :$method")
@@ -114,7 +118,8 @@ end
 
 # Internal: simplify a model by trimming on synthetic data
 function _simplify_model(fun::MultivariateFunction, dd::DataFrame, simplify_to::Int,
-                         method::Symbol, directions::Dict{Symbol,Symbol}, min_gradient::Float64)
+                         method::Symbol, directions::Dict{Symbol,Symbol}, min_gradient::Float64;
+                         weights::Union{Nothing, Vector{Float64}} = nothing)
     if simplify_to <= 0
         return fun
     end
@@ -139,17 +144,18 @@ function _simplify_model(fun::MultivariateFunction, dd::DataFrame, simplify_to::
     if method == :monotonic_mars
         # For monotonic MARS: use OLS-based backward deletion to select which basis
         # functions to keep, then re-estimate coefficients with NNLS to preserve monotonicity.
-        return _trim_monotonic(fun, dd_synth, synth_y, simplify_to, directions, min_gradient)
+        return _trim_monotonic(fun, dd_synth, synth_y, simplify_to, directions, min_gradient; weights=weights)
     else
         # For mars and recursive_partitioning: use standard trim
-        result = trim_mars_spline(dd_synth, synth_y, fun; final_number_of_functions = simplify_to)
+        result = trim_mars_spline(dd_synth, synth_y, fun; final_number_of_functions = simplify_to, weights=weights)
         return result.model
     end
 end
 
 # Internal: trim a monotonic MARS model preserving monotonicity guarantees
 function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symbol,
-                         final_n::Int, directions::Dict{Symbol,Symbol}, min_gradient::Float64)
+                         final_n::Int, directions::Dict{Symbol,Symbol}, min_gradient::Float64;
+                         weights::Union{Nothing, Vector{Float64}} = nothing)
     array_of_funcs = fun.functions_
     # Also include global_funcs_ piecewise representation if needed
     if length(fun.global_funcs_.functions_) > 0
@@ -171,8 +177,8 @@ function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symb
         for m in 2:len  # never delete the intercept (index 1)
             reduced = array_of_funcs[1:end .!= m]
             X = hcat(evaluate.(reduced, Ref(dd))...)
-            coefficients = fit_nnls(X, y_vec)
-            new_lof = sum((X * coefficients .- y_vec) .^ 2)
+            coefficients = fit_nnls(X, y_vec; weights=weights)
+            new_lof = _weighted_rss(X * coefficients .- y_vec, weights)
             if new_lof < best_lof
                 best_lof = new_lof
                 best_m = m
@@ -183,7 +189,7 @@ function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symb
 
     # Final NNLS fit with remaining basis functions
     X = hcat(evaluate.(array_of_funcs, Ref(dd))...)
-    coefficients = fit_nnls(X, y_vec)
+    coefficients = fit_nnls(X, y_vec; weights=weights)
     updated_model = Sum_Of_Piecewise_Functions(array_of_funcs .* coefficients)
 
     # Re-add global funcs (linear floor terms)
@@ -195,7 +201,7 @@ function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symb
 end
 
 """
-    fit!(fitter::MultivariateFitter, dd::DataFrame, y::Symbol)
+    fit!(fitter::MultivariateFitter, dd::DataFrame, y::Symbol; weights = nothing)
 
 Fit the `MultivariateFitter` to new data. The new fit is blended with the previous
 fit using `weight = min(1/(times_through+1), weight_on_new)`. If
@@ -205,11 +211,14 @@ simplified via backward deletion on synthetic data.
 ### Arguments
 * `dd` - DataFrame containing predictor columns and the response.
 * `y` - Symbol naming the response column.
+* `weights` - Optional `Vector{Float64}` of non-negative observation weights (one per row). Interpreted as frequency weights. `nothing` (default) gives uniform weights.
+
+Returns `nothing`. Access the fitted model via `fitter.fun`.
 """
-function fit!(fitter::MultivariateFitter, dd::DataFrame, y::Symbol)
+function fit!(fitter::MultivariateFitter, dd::DataFrame, y::Symbol; weights::Union{Nothing, Vector{Float64}} = nothing)
     newfun = _fit_new_function(fitter.method, dd, y, fitter.x_variables, fitter.MaxM,
                                 fitter.rel_tol, fitter.ols_degree, fitter.directions,
-                                fitter.min_gradient)
+                                fitter.min_gradient; weights=weights)
 
     if fitter.times_through > 0 && fitter.fun !== nothing
         new_weight = min(1.0 / (fitter.times_through + 1), fitter.weight_on_new)
@@ -219,7 +228,7 @@ function fit!(fitter::MultivariateFitter, dd::DataFrame, y::Symbol)
     if fitter.simplification_frequency > 0 && fitter.times_through > 0 &&
        (fitter.times_through % fitter.simplification_frequency == 0)
         newfun = _simplify_model(newfun, dd, fitter.simplify_to, fitter.method,
-                                  fitter.directions, fitter.min_gradient)
+                                  fitter.directions, fitter.min_gradient; weights=weights)
     end
 
     fitter.fun = newfun
@@ -282,8 +291,12 @@ Create a `MultivariateAdjustedFitter` initialised with no fitted function.
 Same as `MultivariateFitter`, plus:
 * `coefficients` - Initial group coefficients `Dict` (default empty).
 * `adjust_for_groups` - Undo group coefficients before fitting (default `true`).
-* `fit_intercept` - Estimate group intercept (default `true`).
+* `fit_intercept` - Estimate group intercept (default `true`). If `false`, forces `a=0` for all groups.
 * `coefficient_bounds` - `((a_min, a_max), (b_min, b_max))` (default `((-1.0, 1.0), (0.1, 2.5))`).
+
+The fitter supports callable syntax: `fitter(dd, group)` and `fitter(coordinates, group)` are
+equivalent to `evaluate(fitter, dd, group)` and `evaluate(fitter, coordinates, group)`.
+Unknown groups use default coefficients `(0.0, 1.0)`.
 """
 function MultivariateAdjustedFitter(method::Symbol, x_variables::Set{Symbol};
                                      MaxM::Int = 5,
@@ -327,7 +340,7 @@ end
 (fitter::MultivariateAdjustedFitter)(coordinates::Dict{Symbol,Float64}, group) = evaluate(fitter, coordinates, group)
 
 """
-    fit!(fitter::MultivariateAdjustedFitter, dd::DataFrame, y::Symbol, groups::Vector)
+    fit!(fitter::MultivariateAdjustedFitter, dd::DataFrame, y::Symbol, groups::Vector; weights = nothing)
 
 Fit the `MultivariateAdjustedFitter` to new data with group labels.
 
@@ -337,8 +350,17 @@ Fit the `MultivariateAdjustedFitter` to new data with group labels.
 4. Blend with previous fit.
 5. Re-estimate per-group `(a_g, b_g)` via weighted OLS, clamped to bounds.
 6. Periodically simplify.
+
+### Arguments
+* `dd` - DataFrame containing predictor columns and the response.
+* `y` - Symbol naming the response column.
+* `groups` - Vector of group labels (one per row), can be any type (e.g. `Symbol`, `String`).
+* `weights` - Optional `Vector{Float64}` of non-negative observation weights (one per row). Interpreted as frequency weights. `nothing` (default) gives uniform weights. Used for shape fitting, simplification, and per-group coefficient estimation.
+
+Returns `nothing`. Access the fitted model via `fitter.fun` and group coefficients via `fitter.coefficients`.
+Groups with fewer than 2 observations are skipped during coefficient estimation.
 """
-function fit!(fitter::MultivariateAdjustedFitter, dd::DataFrame, y::Symbol, groups::Vector)
+function fit!(fitter::MultivariateAdjustedFitter, dd::DataFrame, y::Symbol, groups::Vector; weights::Union{Nothing, Vector{Float64}} = nothing)
     # Onboard new groups
     new_groups = setdiff(unique(groups), keys(fitter.coefficients))
     for g in new_groups
@@ -365,7 +387,7 @@ function fit!(fitter::MultivariateAdjustedFitter, dd::DataFrame, y::Symbol, grou
     # Fit the shared shape
     newfun = _fit_new_function(fitter.method, dd_fit, adj_y, fitter.x_variables, fitter.MaxM,
                                 fitter.rel_tol, fitter.ols_degree, fitter.directions,
-                                fitter.min_gradient)
+                                fitter.min_gradient; weights=weights)
 
     # Blend with previous fit
     if fitter.times_through > 0 && fitter.fun !== nothing
@@ -377,7 +399,7 @@ function fit!(fitter::MultivariateAdjustedFitter, dd::DataFrame, y::Symbol, grou
     if fitter.simplification_frequency > 0 && fitter.times_through > 0 &&
        (fitter.times_through % fitter.simplification_frequency == 0)
         newfun = _simplify_model(newfun, dd, fitter.simplify_to, fitter.method,
-                                  fitter.directions, fitter.min_gradient)
+                                  fitter.directions, fitter.min_gradient; weights=weights)
     end
 
     fitter.fun = newfun
@@ -391,31 +413,49 @@ function fit!(fitter::MultivariateAdjustedFitter, dd::DataFrame, y::Symbol, grou
         mask = groups .== g
         f_vals = evaluate(newfun, dd[mask, :])
         y_g = Float64.(y_vals[mask])
+        w_g = weights === nothing ? nothing : weights[mask]
         n_g = length(y_g)
         if n_g < 2
             continue
         end
 
         if fitter.fit_intercept
-            # OLS with intercept: y = a + b*f
-            mean_f = sum(f_vals) / n_g
-            mean_y = sum(y_g) / n_g
-            var_f = sum((f_vals .- mean_f) .^ 2) / n_g
+            # Weighted OLS with intercept: y = a + b*f
+            if w_g === nothing
+                mean_f = sum(f_vals) / n_g
+                mean_y = sum(y_g) / n_g
+                var_f = sum((f_vals .- mean_f) .^ 2) / n_g
+            else
+                W_g = sum(w_g)
+                mean_f = sum(w_g .* f_vals) / W_g
+                mean_y = sum(w_g .* y_g) / W_g
+                var_f = sum(w_g .* (f_vals .- mean_f) .^ 2) / W_g
+            end
             if var_f < 1e-12
                 new_a = mean_y
                 new_b = 1.0
             else
-                cov_fy = sum((f_vals .- mean_f) .* (y_g .- mean_y)) / n_g
+                if w_g === nothing
+                    cov_fy = sum((f_vals .- mean_f) .* (y_g .- mean_y)) / n_g
+                else
+                    cov_fy = sum(w_g .* (f_vals .- mean_f) .* (y_g .- mean_y)) / W_g
+                end
                 new_b = cov_fy / var_f
                 new_a = mean_y - new_b * mean_f
             end
         else
-            # No-intercept OLS: y = b*f
-            sum_f2 = sum(f_vals .^ 2)
+            # Weighted no-intercept OLS: y = b*f
+            if w_g === nothing
+                sum_f2 = sum(f_vals .^ 2)
+                sum_fy = sum(f_vals .* y_g)
+            else
+                sum_f2 = sum(w_g .* f_vals .^ 2)
+                sum_fy = sum(w_g .* f_vals .* y_g)
+            end
             if sum_f2 < 1e-12
                 new_b = 1.0
             else
-                new_b = sum(f_vals .* y_g) / sum_f2
+                new_b = sum_fy / sum_f2
             end
             new_a = 0.0
         end

@@ -1,3 +1,12 @@
+# Helper for weighted RSS computation
+function _weighted_rss(residuals::AbstractVector{Float64}, weights::Union{Nothing, Vector{Float64}})
+    if weights === nothing
+        return sum(residuals .^ 2)
+    else
+        return sum(weights .* residuals .^ 2)
+    end
+end
+
 function add_split_with_step_function(array_of_funcs::Array, ind::Int, split_variable::Symbol, split_point::Float64, removeSplitFunction::Bool)
     basis_function1 = Piecewise_Function( vcat(Sum_Of_Functions([PE_Function(0.0)]), Sum_Of_Functions([PE_Function(1.0)])) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
     basis_function2 = Piecewise_Function( vcat(Sum_Of_Functions([PE_Function(1.0)]), Sum_Of_Functions([PE_Function(0.0)])) , OrderedDict{Symbol,Array{Float64,1}}(split_variable .=> [[-Inf, split_point]]))
@@ -23,7 +32,7 @@ function add_split_with_max_function(array_of_funcs::Array, ind::Int, split_vari
     end
 end
 
-function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Int, split_variable::Symbol, rel_tol::Float64, SplitFunction::Function, removeSplitFunction::Bool)
+function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Int, split_variable::Symbol, rel_tol::Float64, SplitFunction::Function, removeSplitFunction::Bool; weights::Union{Nothing, Vector{Float64}} = nothing)
     lower_limit = minimum(dd[!, split_variable]) + eps()
     upper_limit = maximum(dd[!, split_variable]) - eps()
 
@@ -46,14 +55,22 @@ function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::In
         new_funcs = model[end-1:end]
         X_new = hcat(evaluate.(new_funcs, Ref(dd))...)
         X = hcat(X_cached, X_new)
-        reg = fit(LinearModel, X, y_vec; dropcollinear=true)
-        return sum((reg.rr.mu .- reg.rr.y) .^ 2)
+        try
+            if weights === nothing
+                reg = fit(LinearModel, X, y_vec; dropcollinear=true)
+            else
+                reg = fit(LinearModel, X, y_vec; dropcollinear=true, weights=FrequencyWeights(weights))
+            end
+            return _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
+        catch
+            return Inf
+        end
     end
     return (opt.minimum, opt.minimizer)
 end
 
 """
-    create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-10)
+    create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2, weights = nothing)
 
 This creates a recusive partitioning approximation. This seperates the space in to a series of hypercubes each of which has a constant
 value within the hypercube. Each step of the algorithm divides a hypercube along some dimension so that the different parts of the hypercube
@@ -63,8 +80,12 @@ a hypercube in a particular dimension. The default is intentionally set high bec
 that much. For small scale data however you might want to decrease it and increase it for large scale data. You might also want to
 decrease it if spline creation time doesnt matter much. Note that a small rel_tol only affects creation time for the spline and
 not the evaluation time.
+
+Returns a named tuple `(model, regression)` where `model` is a `Sum_Of_Piecewise_Functions` and `regression` is the GLM `LinearModel` object.
+
+If `weights` is provided (a `Vector{Float64}` with one non-negative entry per row), a weighted least squares fit is used at each step.
 """
-function create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2)
+function create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2, weights::Union{Nothing, Vector{Float64}} = nothing)
     Arr = Array{Sum_Of_Functions,length(x_variables)}(undef, repeat([1], length(x_variables))...)
     Arr[repeat([1], length(x_variables))...] = Sum_Of_Functions([PE_Function(1.0)])
     pw_func = Piecewise_Function(Arr, OrderedDict{Symbol,Array{Float64,1}}(x_variables .=> repeat([[-Inf]],length(x_variables))) )
@@ -76,7 +97,7 @@ function create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Se
         best_split  = 0.0
         for m in 1:length(array_of_funcs)
             for dimen in x_variables
-                lof, spt = optimise_split(dd, y, array_of_funcs, m, dimen, rel_tol, add_split_with_step_function, true)
+                lof, spt = optimise_split(dd, y, array_of_funcs, m, dimen, rel_tol, add_split_with_step_function, true; weights=weights)
                 if lof < best_lof
                     best_lof = lof
                     best_m = m
@@ -87,12 +108,12 @@ function create_recursive_partitioning(dd::DataFrame, y::Symbol, x_variables::Se
         end
         array_of_funcs = add_split_with_step_function(array_of_funcs, best_m, best_dimen, best_split, true)
     end
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
+    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
     return (model = updated_model, regression = reg)
 end
 
 """
-    create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2)
+    create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2, weights = nothing)
 
 This creates a mars spline given a dataframe, response variable and a set of x_variables from the dataframe.
 The relative tolerance is used in a one-dimensional optimisation step to determine what points at which split values to place
@@ -100,8 +121,12 @@ a max(0,x-split) function in a particular dimension. The default is intentionall
 not that important. For small scale data however you might want to decrease it and increase it for large scale data. You might also want to
 decrease it if spline creation time doesnt matter much. Note that a small rel_tol only affects creation time for the spline and
 not the evaluation time.
+
+Returns a named tuple `(model, regression)` where `model` is a `Sum_Of_Piecewise_Functions` and `regression` is the GLM `LinearModel` object.
+
+If `weights` is provided (a `Vector{Float64}` with one non-negative entry per row), a weighted least squares fit is used at each step.
 """
-function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2)
+function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int; rel_tol::Float64 = 1e-2, weights::Union{Nothing, Vector{Float64}} = nothing)
     # This should be made more efficient using FAST MARS. https://statistics.stanford.edu/sites/default/files/LCS%20110.pdf
     Arr = Array{Sum_Of_Functions,length(x_variables)}(undef, repeat([1], length(x_variables))...)
     Arr[repeat([1], length(x_variables))...] = Sum_Of_Functions([PE_Function(1.0)])
@@ -115,7 +140,7 @@ function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, 
         for m in 1:length(array_of_funcs)
             underlying = underlying_dimensions(array_of_funcs[m])
             for dimen in setdiff(x_variables, underlying)
-                lof, spt = optimise_split(dd, y, array_of_funcs, m, dimen, rel_tol, add_split_with_max_function, false)
+                lof, spt = optimise_split(dd, y, array_of_funcs, m, dimen, rel_tol, add_split_with_max_function, false; weights=weights)
                 if lof < best_lof
                     best_lof = lof
                     best_m = m
@@ -126,11 +151,11 @@ function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, 
         end
         array_of_funcs = add_split_with_max_function(array_of_funcs, best_m, best_dimen, best_split, false)
     end
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
+    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
     return (model = updated_model, regression = reg)
 end
 
-function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, final_number_of_functions::Int)
+function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, final_number_of_functions::Int; weights::Union{Nothing, Vector{Float64}} = nothing)
     if final_number_of_functions < 2
         error("Cannot trim the number of functions to less than 2")
     end
@@ -142,8 +167,8 @@ function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, mo
         len = length(array_of_funcs)
         for m in 2:len
             reduced_array_of_functions = array_of_funcs[1:end .!= m]
-            mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions)
-            new_lof = sum((reg.rr.mu .- reg.rr.y) .^ 2)
+            mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions; weights=weights)
+            new_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
             if new_lof < best_lof
                 best_lof = new_lof
                 best_m = m
@@ -152,13 +177,13 @@ function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, mo
         end
         array_of_funcs = array_of_funcs[1:end .!= best_m]
     end
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
+    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
     return (model = updated_model, regression = reg)
 end
-function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_increase_in_RSS::Float64)
+function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_increase_in_RSS::Float64; weights::Union{Nothing, Vector{Float64}} = nothing)
     array_of_funcs = model.functions_
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
-    previous_best_lof = sum((reg.rr.mu .- reg.rr.y) .^ 2)
+    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
+    previous_best_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
     ender = false
     while !ender && (length(array_of_funcs) > 1)
         best_m = 2
@@ -166,8 +191,8 @@ function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, mode
         len = length(array_of_funcs)
         for m in 2:len
             reduced_array_of_functions = array_of_funcs[1:end .!= m]
-            mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions)
-            new_lof = sum((reg.rr.mu .- reg.rr.y) .^ 2)
+            mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions; weights=weights)
+            new_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
             if new_lof < best_lof
                 best_lof = new_lof
                 best_m = m
@@ -181,10 +206,10 @@ function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, mode
             ender = true
         end
     end
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
+    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
     return (model = updated_model, regression = reg)
 end
-function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_RSS::Float64)
+function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_RSS::Float64; weights::Union{Nothing, Vector{Float64}} = nothing)
     array_of_funcs = model.functions_
     ender = false
     while !ender && (length(array_of_funcs) > 1)
@@ -193,8 +218,8 @@ function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Pi
         len = length(array_of_funcs)
         for m in 2:len
             reduced_array_of_functions = array_of_funcs[1:end .!= m]
-            mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions)
-            new_lof = sum((reg.rr.mu .- reg.rr.y) .^ 2)
+            mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions; weights=weights)
+            new_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
             if new_lof < best_lof
                 best_lof = new_lof
                 best_m = m
@@ -207,12 +232,13 @@ function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Pi
             ender = true
         end
     end
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs)
+    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
     return (model = updated_model, regression = reg)
 end
 """
-trim_mars_spline(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions;
-                   maximum_RSS::Float64 = -1.0, maximum_increase_in_RSS::Float64 = -1.0, final_number_of_functions::Int = -1)
+    trim_mars_spline(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions;
+                       maximum_RSS::Float64 = -1.0, maximum_increase_in_RSS::Float64 = -1.0,
+                       final_number_of_functions::Int = -1, weights = nothing)
 
 This trims a mars spline created in the create_mars_spline function. This algorithm goes through
 each piecewise function in the mars spline and deletes the one that contributes least to the fit.
@@ -221,9 +247,14 @@ the maximum_RSS that can be tolerated. If this is set then functions will be del
 additional function would push RSS over this amount. The second is maximum_increase_in_RSS which will delete
 functions until a deletion increases RSS by more than this amount. The final is final_number_of_functions
 which reduces the number of fucntions to this number.
+
+Returns a named tuple `(model, regression)` where `model` is the trimmed `Sum_Of_Piecewise_Functions` and `regression` is the final GLM `LinearModel` object.
+
+If `weights` is provided (a `Vector{Float64}` with one non-negative entry per row), weighted RSS is used for all comparisons.
 """
 function trim_mars_spline(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions;
-                   maximum_RSS::Float64 = -1.0, maximum_increase_in_RSS::Float64 = -1.0, final_number_of_functions::Int = -1)
+                   maximum_RSS::Float64 = -1.0, maximum_increase_in_RSS::Float64 = -1.0, final_number_of_functions::Int = -1,
+                   weights::Union{Nothing, Vector{Float64}} = nothing)
     if ((maximum_RSS > 0.0) && (maximum_increase_in_RSS > 0.0)) ||
        ((maximum_RSS > 0.0) && (final_number_of_functions > 0)) ||
        ((maximum_increase_in_RSS > 0.0) && (final_number_of_functions > 0))
@@ -231,11 +262,11 @@ function trim_mars_spline(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Func
     elseif (maximum_RSS < 0.0) && (maximum_increase_in_RSS < 0.0) && (final_number_of_functions < 0)
         error("You must specify at least one condition for trimming. The final number of functions to trim to, the maximum increase in RSS or the maximum RSS.")
     elseif (maximum_RSS > 0.0)
-        return trim_mars_spline_maximum_RSS(dd, y, model, maximum_RSS)
+        return trim_mars_spline_maximum_RSS(dd, y, model, maximum_RSS; weights=weights)
     elseif (maximum_increase_in_RSS > 0.0)
-        return trim_mars_spline_maximum_increase_in_RSS(dd, y, model, maximum_increase_in_RSS)
+        return trim_mars_spline_maximum_increase_in_RSS(dd, y, model, maximum_increase_in_RSS; weights=weights)
     elseif (final_number_of_functions > 0)
-        return trim_mars_spline_final_number_of_functions(dd, y, model, final_number_of_functions)
+        return trim_mars_spline_final_number_of_functions(dd, y, model, final_number_of_functions; weights=weights)
     else
         error("This should be unreachable code. Please let the developer know if you get this.")
     end
@@ -243,26 +274,46 @@ end
 
 # --- Monotonic MARS ---
 
-function fit_nnls(X::Matrix{Float64}, y_vec::Vector{Float64})
+function fit_nnls(X::Matrix{Float64}, y_vec::Vector{Float64}; weights::Union{Nothing, Vector{Float64}} = nothing)
     n, p = size(X)
     if p == 0
         return Float64[]
     end
     if p == 1
-        return X \ y_vec
+        if weights === nothing
+            return X \ y_vec
+        else
+            sqrtW = sqrt.(weights)
+            return (sqrtW .* X) \ (sqrtW .* y_vec)
+        end
     end
     # Separate intercept (column 1, unconstrained) from remaining columns (>= 0).
     # Center data to analytically eliminate the intercept, then solve NNLS via
     # coordinate descent on the centered problem.
     X2 = X[:, 2:end]
-    y_mean = sum(y_vec) / n
-    X2_means = vec(sum(X2, dims=1) ./ n)
+    if weights === nothing
+        y_mean = sum(y_vec) / n
+        X2_means = vec(sum(X2, dims=1) ./ n)
+    else
+        W = sum(weights)
+        y_mean = sum(weights .* y_vec) / W
+        X2_means = vec(sum(weights .* X2, dims=1) ./ W)
+    end
     y_c = y_vec .- y_mean
     X2_c = X2 .- X2_means'
     # Coordinate descent NNLS: min ||X2_c * β2 - y_c||² s.t. β2 >= 0
+    # For weighted case, use sqrt(weights) scaling so normal equations become X'WX and X'Wy
     p2 = p - 1
-    AtA = X2_c' * X2_c
-    Atb = X2_c' * y_c
+    if weights === nothing
+        AtA = X2_c' * X2_c
+        Atb = X2_c' * y_c
+    else
+        sqrtW = sqrt.(weights)
+        X2_cw = sqrtW .* X2_c
+        y_cw = sqrtW .* y_c
+        AtA = X2_cw' * X2_cw
+        Atb = X2_cw' * y_cw
+    end
     β2 = zeros(p2)
     for iter in 1:5000
         converged = true
@@ -309,7 +360,8 @@ function add_split_monotone(array_of_funcs::Array, ind::Int, split_variable::Sym
 end
 
 function optimise_monotone_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::Int,
-                                 split_variable::Symbol, direction::Symbol, rel_tol::Float64)
+                                 split_variable::Symbol, direction::Symbol, rel_tol::Float64;
+                                 weights::Union{Nothing, Vector{Float64}} = nothing)
     lower_limit = minimum(dd[!, split_variable]) + eps()
     upper_limit = maximum(dd[!, split_variable]) - eps()
     y_vec = dd[!, y]
@@ -319,8 +371,8 @@ function optimise_monotone_split(dd::DataFrame, y::Symbol, array_of_funcs::Array
         new_func = model[end:end]
         X_new = hcat(evaluate.(new_func, Ref(dd))...)
         X = hcat(X_cached, X_new)
-        coefficients = fit_nnls(X, y_vec)
-        return sum((X * coefficients .- y_vec) .^ 2)
+        coefficients = fit_nnls(X, y_vec; weights=weights)
+        return _weighted_rss(X * coefficients .- y_vec, weights)
     end
     return (opt.minimum, opt.minimizer)
 end
@@ -329,7 +381,8 @@ end
     create_monotonic_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int;
                                  rel_tol::Float64 = 1e-2,
                                  directions::Dict{Symbol,Symbol} = Dict{Symbol,Symbol}(),
-                                 min_gradient::Float64 = 0.0)
+                                 min_gradient::Float64 = 0.0,
+                                 weights::Union{Nothing, Vector{Float64}} = nothing)
 
 Creates a MARS spline that is guaranteed to be monotonic in each specified dimension.
 Each basis function uses only forward hinges `max(0, x - t)` (for increasing dimensions) or
@@ -347,11 +400,17 @@ If `min_gradient` is set to a positive value, a linear term with that slope is a
 dimension (with appropriate sign for the direction). This ensures the function is strictly
 increasing (or decreasing) everywhere with at least the specified gradient, eliminating flat
 regions. The MARS basis functions are fit to the residual after removing these linear terms.
+
+Returns a named tuple `(model, coefficients, rss)` where `model` is a `Sum_Of_Piecewise_Functions`,
+`coefficients` is the NNLS coefficient vector, and `rss` is the residual sum of squares.
+
+If `weights` is provided (a `Vector{Float64}` with one non-negative entry per row), a weighted NNLS fit is used at each step.
 """
 function create_monotonic_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, MaxM::Int;
                                       rel_tol::Float64 = 1e-2,
                                       directions::Dict{Symbol,Symbol} = Dict{Symbol,Symbol}(),
-                                      min_gradient::Float64 = 0.0)
+                                      min_gradient::Float64 = 0.0,
+                                      weights::Union{Nothing, Vector{Float64}} = nothing)
     if isempty(directions)
         directions = Dict{Symbol,Symbol}(d => :increasing for d in x_variables)
     end
@@ -401,7 +460,7 @@ function create_monotonic_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set
         for m in 1:length(array_of_funcs)
             underlying = underlying_dimensions(array_of_funcs[m])
             for dimen in setdiff(x_variables, underlying)
-                lof, spt = optimise_monotone_split(dd_fit, y_fit, array_of_funcs, m, dimen, directions[dimen], rel_tol)
+                lof, spt = optimise_monotone_split(dd_fit, y_fit, array_of_funcs, m, dimen, directions[dimen], rel_tol; weights=weights)
                 if lof < best_lof
                     best_lof = lof
                     best_m = m
@@ -415,7 +474,7 @@ function create_monotonic_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set
 
     X = hcat(evaluate.(array_of_funcs, Ref(dd_fit))...)
     y_vec = dd_fit[!, y_fit]
-    coefficients = fit_nnls(X, y_vec)
+    coefficients = fit_nnls(X, y_vec; weights=weights)
     updated_model = Sum_Of_Piecewise_Functions(array_of_funcs .* coefficients)
 
     # Add linear floor back to the model
@@ -423,6 +482,6 @@ function create_monotonic_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set
         updated_model = updated_model + linear_sum
     end
 
-    rss = sum((evaluate(updated_model, dd) .- dd[!, y]) .^ 2)
+    rss = _weighted_rss(evaluate(updated_model, dd) .- dd[!, y], weights)
     return (model = updated_model, coefficients = coefficients, rss = rss)
 end

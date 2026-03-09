@@ -3,6 +3,7 @@ module MultivariateFunctions
 using Dates
 using SchumakerSpline
 using GLM
+import GLM: FrequencyWeights
 using DataFrames: DataFrame
 using DataStructures: OrderedDict
 using Combinatorics: permutations

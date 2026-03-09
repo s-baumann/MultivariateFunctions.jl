@@ -100,6 +100,42 @@ result = create_monotonic_mars_spline(dd, :y, Set([:x, :z]), 5;
     min_gradient = 0.01)
 ```
 
+## Weighted Approximation
+
+All approximation methods accept an optional `weights` keyword. Weights must be a `Vector{Float64}` with one entry per observation:
+
+```
+using MultivariateFunctions
+using DataFrames, Random, Distributions
+
+Random.seed!(1)
+nObs = 200
+dd = DataFrame()
+dd[!, :x] = rand(Normal(), nObs)
+dd[!, :z] = rand(Normal(), nObs)
+dd[!, :y] = 2.0 .* max.(0.0, dd[!, :x] .- 0.3) .+ 1.5 .* max.(0.0, dd[!, :z] .+ 0.5) .+ 1.0
+
+# Random positive weights
+w = rand(nObs) .+ 0.1
+
+# Weighted OLS
+model_w, reg_w = create_saturated_ols_approximation(dd, :y, [:x, :z], 2; weights = w)
+
+# Weighted MARS
+result_w = create_mars_spline(dd, :y, Set([:x, :z]), 5; weights = w)
+
+# Weighted monotonic MARS
+result_mw = create_monotonic_mars_spline(dd, :y, Set([:x, :z]), 5; weights = w)
+```
+
+Near-zero weights effectively exclude observations, which is useful for downweighting outliers:
+```
+# Add outliers and downweight them
+dd_out = vcat(dd, DataFrame(x = [0.0], z = [0.0], y = [1000.0]))
+w_out = vcat(ones(nObs), [1e-10])
+model_clean, _ = create_saturated_ols_approximation(dd_out, :y, [:x, :z], 2; weights = w_out)
+```
+
 ## Iterative Fitting with MultivariateFitter
 
 The `MultivariateFitter` allows iterative fitting where each call to `fit!` blends new data with the accumulated model. This is useful for daily signal-to-return mappings.
@@ -131,6 +167,40 @@ dd_test = DataFrame(x = [1.0, 2.0], z = [0.5, -0.5])
 predictions = evaluate(fitter, dd_test)
 ```
 
+Both fitter types support callable syntax as a shorthand for `evaluate`:
+```
+# These are equivalent:
+predictions = evaluate(fitter, dd_test)
+predictions = fitter(dd_test)
+
+# Single-point evaluation:
+val = fitter(Dict(:x => 1.0, :z => 0.5))
+```
+
+Weights can be passed to `fit!` for weighted fitting:
+```
+w = rand(200) .+ 0.1
+fit!(fitter, dd, :y; weights = w)
+```
+
+## Monotonic MARS with Iterative Fitting
+
+The `MultivariateFitter` supports `:monotonic_mars` for iterative fitting with monotonicity guarantees:
+```
+fitter = MultivariateFitter(:monotonic_mars, Set([:x, :z]);
+    MaxM = 4, weight_on_new = 0.5,
+    directions = Dict(:x => :increasing, :z => :increasing),
+    min_gradient = 0.01)
+
+for day in 1:10
+    dd = DataFrame()
+    dd[!, :x] = rand(Normal(), 200)
+    dd[!, :z] = rand(Normal(), 200)
+    dd[!, :y] = 3.0 .* max.(0.0, dd[!, :x]) .+ 2.0 .* dd[!, :z] .+ 1.0 .+ rand(Normal(), 200)
+    fit!(fitter, dd, :y)
+end
+```
+
 ## Iterative Fitting with Group Adjustments
 
 The `MultivariateAdjustedFitter` fits a shared shape `f(x)` with per-group affine coefficients `y_g ≈ a_g + b_g * f(x)`:
@@ -148,7 +218,24 @@ groups = vcat(fill(:A, 150), fill(:B, 150))
 
 fit!(fitter, dd, :y, groups)
 
-# Group-specific predictions
+# Group-specific predictions (these are equivalent)
 predictions_A = evaluate(fitter, dd[1:10, :], :A)
-predictions_B = evaluate(fitter, dd[1:10, :], :B)
+predictions_A = fitter(dd[1:10, :], :A)
+
+# Single-point evaluation
+val = fitter(Dict(:x => 1.0, :z => 0.5), :B)
+```
+
+The `coefficient_bounds` parameter clamps per-group `(a, b)` to specified ranges. Setting `fit_intercept = false` forces `a = 0`:
+```
+fitter = MultivariateAdjustedFitter(:mars, Set([:x, :z]);
+    MaxM = 4, weight_on_new = 0.5,
+    fit_intercept = false,
+    coefficient_bounds = ((-5.0, 5.0), (0.5, 2.0)))
+```
+
+For unknown groups (not seen during fitting), predictions use default coefficients `(a=0.0, b=1.0)`:
+```
+# Group :C was never in the training data
+predictions_C = fitter(dd[1:5, :], :C)  # uses a=0, b=1
 ```
