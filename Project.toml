@@ -16,7 +16,7 @@ SchumakerSpline = "65e68595-3a03-5ff5-a6a2-f05fa774f32e"
 [compat]
 Combinatorics = "^1.1.0"
 DataFrames = "^1.8.1"
-DataStructures = "^0.19.3"
+DataStructures = "^0.18.0"
 Dates = "^1.11.0"
 GLM = "^1.9.3"
 LinearAlgebra = "^1.11.0"
