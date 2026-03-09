@@ -59,12 +59,11 @@ function optimise_split(dd::DataFrame, y::Symbol, array_of_funcs::Array, ind::In
         X_new = hcat(evaluate.(new_funcs, Ref(dd))...)
         X = hcat(X_cached, X_new)
         if weights !== nothing
-            # Check if the weighted cross-product matrix is positive definite.
-            # Near-zero weights can make the effective sample degenerate.
+            # Near-zero weights can make the weighted design matrix rank-deficient,
+            # causing GLM's Cholesky factorization to fail. Check before calling GLM.
             sqrtW = sqrt.(weights)
             Xw = sqrtW .* X
-            XtX = Xw' * Xw
-            if det(XtX) ≤ 0.0
+            if !isposdef(Xw' * Xw)
                 return Inf
             end
         end

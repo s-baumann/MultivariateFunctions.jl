@@ -7,7 +7,7 @@ import GLM: FrequencyWeights
 using DataFrames: DataFrame
 using DataStructures: OrderedDict
 using Combinatorics: permutations
-using LinearAlgebra: Hermitian, inv, det
+using LinearAlgebra: Hermitian, inv, det, isposdef
 using Optim
 
 # This includes functions for use of MultivariateFunctions with dates.
