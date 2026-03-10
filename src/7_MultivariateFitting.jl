@@ -149,45 +149,43 @@ function _simplify_model(fun::MultivariateFunction, dd::DataFrame, simplify_to::
     end
 end
 
-# Internal: trim a monotonic MARS model preserving monotonicity guarantees
+# Internal: trim a monotonic MARS model preserving monotonicity guarantees.
+# Precomputes the full design matrix once, then does backward deletion
+# using column slicing and NNLS refits (no re-evaluation of basis functions).
 function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symbol,
                          final_n::Int, directions::Dict{Symbol,Symbol}, min_gradient::Float64;
                          weights::Union{Nothing, Vector{Float64}} = nothing)
     array_of_funcs = fun.functions_
-    # Also include global_funcs_ piecewise representation if needed
-    if length(fun.global_funcs_.functions_) > 0
-        # The global funcs include the linear floor terms from min_gradient.
-        # We keep those separate and only trim the piecewise basis functions.
-    end
-
-    functions_to_delete = length(array_of_funcs) - final_n
+    n_funcs = length(array_of_funcs)
+    functions_to_delete = n_funcs - final_n
     if functions_to_delete <= 0
         return fun
     end
 
-    y_vec = dd[!, y]
+    y_vec = Vector{Float64}(dd[!, y])
+    X_full = hcat(evaluate.(array_of_funcs, Ref(dd))...)
+    keep_cols = collect(1:n_funcs)
 
-    for M in 1:functions_to_delete
+    for _ in 1:functions_to_delete
         best_lof = Inf
-        best_m = 2
-        len = length(array_of_funcs)
-        for m in 2:len  # never delete the intercept (index 1)
-            reduced = _remove_at(array_of_funcs, m)
-            X = hcat(evaluate.(reduced, Ref(dd))...)
+        best_idx = 2
+        for m in 2:length(keep_cols)  # never delete the intercept (index 1)
+            candidate = vcat(keep_cols[1:m-1], keep_cols[m+1:end])
+            X = X_full[:, candidate]
             coefficients = fit_nnls(X, y_vec; weights=weights)
             new_lof = _weighted_rss(X * coefficients .- y_vec, weights)
             if new_lof < best_lof
                 best_lof = new_lof
-                best_m = m
+                best_idx = m
             end
         end
-        array_of_funcs = _remove_at(array_of_funcs, best_m)
+        keep_cols = vcat(keep_cols[1:best_idx-1], keep_cols[best_idx+1:end])
     end
 
     # Final NNLS fit with remaining basis functions
-    X = hcat(evaluate.(array_of_funcs, Ref(dd))...)
+    X = X_full[:, keep_cols]
     coefficients = fit_nnls(X, y_vec; weights=weights)
-    updated_model = Sum_Of_Piecewise_Functions(array_of_funcs .* coefficients)
+    updated_model = Sum_Of_Piecewise_Functions(array_of_funcs[keep_cols] .* coefficients)
 
     # Re-add global funcs (linear floor terms)
     if length(fun.global_funcs_.functions_) > 0

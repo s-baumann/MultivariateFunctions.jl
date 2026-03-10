@@ -163,84 +163,95 @@ function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, 
     return (model = updated_model, regression = reg)
 end
 
+# Solve OLS on a column subset of a precomputed design matrix.
+# Returns RSS only (no model construction) for fast candidate evaluation.
+function _ols_rss_for_columns(X_full::Matrix{Float64}, y_vec::Vector{Float64},
+                               cols::Vector{Int}, weights::Union{Nothing, Vector{Float64}})
+    X = @view X_full[:, cols]
+    if weights === nothing
+        coefs = X \ y_vec
+    else
+        sqrtW = sqrt.(weights)
+        Xw = sqrtW .* X
+        yw = sqrtW .* y_vec
+        coefs = Xw \ yw
+    end
+    return _weighted_rss(X * coefs .- y_vec, weights)
+end
+
+# Backward deletion core: precomputes the design matrix once, then repeatedly
+# finds and removes the column (excluding column 1 / the intercept) whose
+# deletion increases RSS the least. Returns the surviving column indices.
+function _backward_delete(X_full::Matrix{Float64}, y_vec::Vector{Float64},
+                           weights::Union{Nothing, Vector{Float64}},
+                           keep_cols::Vector{Int},
+                           should_stop::Function)
+    while length(keep_cols) > 1
+        best_rss = Inf
+        best_idx = 2
+        for m in 2:length(keep_cols)
+            candidate = vcat(keep_cols[1:m-1], keep_cols[m+1:end])
+            rss = _ols_rss_for_columns(X_full, y_vec, candidate, weights)
+            if rss < best_rss
+                best_rss = rss
+                best_idx = m
+            end
+        end
+        if should_stop(best_rss)
+            break
+        end
+        keep_cols = vcat(keep_cols[1:best_idx-1], keep_cols[best_idx+1:end])
+    end
+    return keep_cols
+end
+
 function trim_mars_spline_final_number_of_functions(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, final_number_of_functions::Int; weights::Union{Nothing, Vector{Float64}} = nothing)
     if final_number_of_functions < 2
         error("Cannot trim the number of functions to less than 2")
     end
     array_of_funcs = model.functions_
-    functions_to_delete = length(model.functions_) - final_number_of_functions
-    for M in 1:functions_to_delete
-        best_lof = Inf
-        best_m = 2
-        len = length(array_of_funcs)
-        for m in 2:len
-            reduced_array_of_functions = _remove_at(array_of_funcs, m)
-            mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions; weights=weights)
-            new_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
-            if new_lof < best_lof
-                best_lof = new_lof
-                best_m = m
-            end
-
-        end
-        array_of_funcs = _remove_at(array_of_funcs, best_m)
+    n_funcs = length(array_of_funcs)
+    functions_to_delete = n_funcs - final_number_of_functions
+    if functions_to_delete <= 0
+        updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
+        return (model = updated_model, regression = reg)
     end
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
+    X_full = hcat(evaluate.(array_of_funcs, Ref(dd))...)
+    y_vec = Vector{Float64}(dd[!, y])
+    keep_cols = collect(1:n_funcs)
+    deleted = Ref(0)
+    keep_cols = _backward_delete(X_full, y_vec, weights, keep_cols,
+                                  _ -> (deleted[] += 1; deleted[] > functions_to_delete))
+    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs[keep_cols]; weights=weights)
     return (model = updated_model, regression = reg)
 end
 function trim_mars_spline_maximum_increase_in_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_increase_in_RSS::Float64; weights::Union{Nothing, Vector{Float64}} = nothing)
     array_of_funcs = model.functions_
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
-    previous_best_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
-    ender = false
-    while !ender && (length(array_of_funcs) > 1)
-        best_m = 2
-        best_lof = Inf
-        len = length(array_of_funcs)
-        for m in 2:len
-            reduced_array_of_functions = _remove_at(array_of_funcs, m)
-            mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions; weights=weights)
-            new_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
-            if new_lof < best_lof
-                best_lof = new_lof
-                best_m = m
-            end
-
-        end
-        if best_lof - previous_best_lof < maximum_increase_in_RSS
-            array_of_funcs = _remove_at(array_of_funcs, best_m)
-            previous_best_lof = best_lof
-        else
-            ender = true
-        end
-    end
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
+    n_funcs = length(array_of_funcs)
+    X_full = hcat(evaluate.(array_of_funcs, Ref(dd))...)
+    y_vec = Vector{Float64}(dd[!, y])
+    previous_rss = Ref(_ols_rss_for_columns(X_full, y_vec, collect(1:n_funcs), weights))
+    keep_cols = collect(1:n_funcs)
+    keep_cols = _backward_delete(X_full, y_vec, weights, keep_cols,
+                                  best_rss -> begin
+                                      if best_rss - previous_rss[] >= maximum_increase_in_RSS
+                                          return true
+                                      end
+                                      previous_rss[] = best_rss
+                                      return false
+                                  end)
+    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs[keep_cols]; weights=weights)
     return (model = updated_model, regression = reg)
 end
 function trim_mars_spline_maximum_RSS(dd::DataFrame, y::Symbol, model::Sum_Of_Piecewise_Functions, maximum_RSS::Float64; weights::Union{Nothing, Vector{Float64}} = nothing)
     array_of_funcs = model.functions_
-    ender = false
-    while !ender && (length(array_of_funcs) > 1)
-        best_lof = Inf
-        best_m = 2
-        len = length(array_of_funcs)
-        for m in 2:len
-            reduced_array_of_functions = _remove_at(array_of_funcs, m)
-            mod2, reg = create_ols_approximation(dd, y, reduced_array_of_functions; weights=weights)
-            new_lof = _weighted_rss(reg.rr.mu .- reg.rr.y, weights)
-            if new_lof < best_lof
-                best_lof = new_lof
-                best_m = m
-            end
-
-        end
-        if best_lof < maximum_RSS
-            array_of_funcs = _remove_at(array_of_funcs, best_m)
-        else
-            ender = true
-        end
-    end
-    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs; weights=weights)
+    n_funcs = length(array_of_funcs)
+    X_full = hcat(evaluate.(array_of_funcs, Ref(dd))...)
+    y_vec = Vector{Float64}(dd[!, y])
+    keep_cols = collect(1:n_funcs)
+    keep_cols = _backward_delete(X_full, y_vec, weights, keep_cols,
+                                  best_rss -> best_rss >= maximum_RSS)
+    updated_model, reg = create_ols_approximation(dd, y, array_of_funcs[keep_cols]; weights=weights)
     return (model = updated_model, regression = reg)
 end
 """
