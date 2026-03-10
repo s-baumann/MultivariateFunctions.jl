@@ -163,41 +163,55 @@ function create_mars_spline(dd::DataFrame, y::Symbol, x_variables::Set{Symbol}, 
     return (model = updated_model, regression = reg)
 end
 
-# Solve OLS on a column subset of a precomputed design matrix.
-# Returns RSS only (no model construction) for fast candidate evaluation.
-function _ols_rss_for_columns(X_full::Matrix{Float64}, y_vec::Vector{Float64},
-                               cols::Vector{Int}, weights::Union{Nothing, Vector{Float64}})
-    X = @view X_full[:, cols]
+# Compute OLS RSS for a subset of columns from a precomputed design matrix.
+function _ols_rss_for_columns(X_full::Matrix{Float64}, y_vec::Vector{Float64}, cols::Vector{Int}, weights::Union{Nothing, Vector{Float64}})
+    X = X_full[:, cols]
     if weights === nothing
-        coefs = X \ y_vec
+        beta = X \ y_vec
     else
         sqrtW = sqrt.(weights)
-        Xw = sqrtW .* X
-        yw = sqrtW .* y_vec
-        coefs = Xw \ yw
+        beta = (sqrtW .* X) \ (sqrtW .* y_vec)
     end
-    return _weighted_rss(X * coefs .- y_vec, weights)
+    return _weighted_rss(X * beta .- y_vec, weights)
 end
 
-# Backward deletion core: precomputes the design matrix once, then repeatedly
-# finds and removes the column (excluding column 1 / the intercept) whose
-# deletion increases RSS the least. Returns the surviving column indices.
+# OLS backward deletion using the exact ΔRSS formula from partitioned regression.
+# When column j is removed, the increase in weighted RSS is exactly:
+#   ΔRSS_j = β_j² / [(X'WX)⁻¹]_{jj}
+# This avoids refitting for each candidate — one solve per deletion round
+# reduces cost from O(p) regressions to O(1) per round.
 function _backward_delete(X_full::Matrix{Float64}, y_vec::Vector{Float64},
                            weights::Union{Nothing, Vector{Float64}},
                            keep_cols::Vector{Int},
                            should_stop::Function)
     while length(keep_cols) > 1
-        best_rss = Inf
+        X = X_full[:, keep_cols]
+        if weights === nothing
+            XtX = X' * X
+            Xty = X' * y_vec
+        else
+            sqrtW = sqrt.(weights)
+            Xw = sqrtW .* X
+            yw = sqrtW .* y_vec
+            XtX = Xw' * Xw
+            Xty = Xw' * yw
+        end
+        C = isposdef(Hermitian(XtX)) ? inv(XtX) : pinv(XtX)
+        beta = C * Xty
+        current_rss = _weighted_rss(X * beta .- y_vec, weights)
+
+        # Find the non-intercept column whose removal increases RSS the least
+        best_delta = Inf
         best_idx = 2
         for m in 2:length(keep_cols)
-            candidate = vcat(keep_cols[1:m-1], keep_cols[m+1:end])
-            rss = _ols_rss_for_columns(X_full, y_vec, candidate, weights)
-            if rss < best_rss
-                best_rss = rss
+            delta = beta[m]^2 / C[m, m]
+            if delta < best_delta
+                best_delta = delta
                 best_idx = m
             end
         end
-        if should_stop(best_rss)
+
+        if should_stop(current_rss + best_delta)
             break
         end
         keep_cols = vcat(keep_cols[1:best_idx-1], keep_cols[best_idx+1:end])

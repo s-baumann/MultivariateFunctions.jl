@@ -152,6 +152,8 @@ end
 # Internal: trim a monotonic MARS model preserving monotonicity guarantees.
 # Precomputes the full design matrix once, then does backward deletion
 # using column slicing and NNLS refits (no re-evaluation of basis functions).
+# Exploits NNLS sparsity: columns with zero coefficients can be removed for
+# free (KKT passive set property), avoiding expensive refits.
 function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symbol,
                          final_n::Int, directions::Dict{Symbol,Symbol}, min_gradient::Float64;
                          weights::Union{Nothing, Vector{Float64}} = nothing)
@@ -166,20 +168,39 @@ function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symb
     X_full = hcat(evaluate.(array_of_funcs, Ref(dd))...)
     keep_cols = collect(1:n_funcs)
 
-    for _ in 1:functions_to_delete
+    deleted = 0
+    while deleted < functions_to_delete && length(keep_cols) > 1
+        # Solve NNLS once for current column set
+        X = X_full[:, keep_cols]
+        coefficients = fit_nnls(X, y_vec; weights=weights)
+
+        # Remove zero-coefficient columns for free (skip intercept at index 1).
+        # By KKT conditions, removing passive-set columns doesn't change the solution.
+        zero_indices = [m for m in 2:length(keep_cols) if coefficients[m] ≤ 0.0]
+        can_delete_free = min(length(zero_indices), functions_to_delete - deleted)
+        if can_delete_free > 0
+            to_remove = Set(zero_indices[1:can_delete_free])
+            keep_cols = [keep_cols[m] for m in 1:length(keep_cols) if m ∉ to_remove]
+            deleted += can_delete_free
+            continue
+        end
+
+        # All remaining non-intercept columns have positive coefficients.
+        # Must test each candidate with a full NNLS refit.
         best_lof = Inf
         best_idx = 2
-        for m in 2:length(keep_cols)  # never delete the intercept (index 1)
-            candidate = vcat(keep_cols[1:m-1], keep_cols[m+1:end])
-            X = X_full[:, candidate]
-            coefficients = fit_nnls(X, y_vec; weights=weights)
-            new_lof = _weighted_rss(X * coefficients .- y_vec, weights)
+        for m in 2:length(keep_cols)
+            candidate = _remove_at(keep_cols, m)
+            Xc = X_full[:, candidate]
+            c = fit_nnls(Xc, y_vec; weights=weights)
+            new_lof = _weighted_rss(Xc * c .- y_vec, weights)
             if new_lof < best_lof
                 best_lof = new_lof
                 best_idx = m
             end
         end
-        keep_cols = vcat(keep_cols[1:best_idx-1], keep_cols[best_idx+1:end])
+        keep_cols = _remove_at(keep_cols, best_idx)
+        deleted += 1
     end
 
     # Final NNLS fit with remaining basis functions
