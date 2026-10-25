@@ -1,5 +1,5 @@
 import Base.+, Base.-, Base./, Base.*, Base.^
-import Base.sort, Base.convert
+import Base.convert
 import SchumakerSpline.evaluate
 using Dates
 abstract type MultivariateFunction end
@@ -8,7 +8,18 @@ abstract type MultivariateFunction end
 const tol = 100*eps()
 """
     ≂
-This tests whether two structs are close after allowing for numerical tolerance.
+Approximate equality. Float64s (and the multipliers of PE_Functions) are compared with an
+absolute tolerance of 100*eps(). Two standalone PE_Units are also compared with this tolerance.
+The units of two PE_Functions are however compared exactly: each PE_Function caches a hash of
+its unit fields and the comparison short-circuits on it, so two PE_Functions only compare equal
+if their PE_Units match bit-for-bit and their multipliers are within tolerance. The same applies
+to the aggregation of terms in the Sum_Of_Functions constructor.
+Two Sum_Of_Functions are ≂ if their terms can be matched one-to-one (in any order) with ≂
+PE_Functions. Two Piecewise_Functions are ≂ if their dimensions appear in the same order with
+≂ thresholds and their cells are ≂ cell by cell; Sum_Of_Piecewise_Functions additionally match
+their pieces one-to-one in any order. All of these are structural comparisons: two functions
+that are mathematically equal but represented differently (different aggregation, bases or
+partitioning) compare as false. Comparisons across different types also return false.
 """
 function ≂(a::Float64,b::Float64)
     return abs(a-b) < tol
@@ -202,10 +213,6 @@ end
 
 Base.broadcastable(e::PE_Function) = Ref(e)
 
-function get_bases(f::PE_Function)::BaseMap
-    return BaseMap([sym => unit.base_ for (sym, unit) in f.units_])
-end
-
 """
     rebadge(f::PE_Function, mapping::Dict{Symbol,Symbol})
     can be used to change the names of the variables in a MultivariateFunction.
@@ -279,7 +286,8 @@ end
 
 Creates a Sum_Of_Functions from an array of PE_Functions and/or Sum_Of_Functions.
 The constructors for this type go through each input Sum_Of_Functions and takes out the contained PE_Functions (so unecessary nesting doesnt occur where a Sum_Of_Functions could contain another Sum_Of_Functions).
-The constructors also aggregate PE_Functions where possible. For intance if two PE_Functions have the same PE_Units and differ in their multiplier these multipliers can be added.
+The constructors also aggregate PE_Functions where possible. If two PE_Functions have exactly identical PE_Units (bit-for-bit; terms are grouped by a precomputed hash of the unit fields)
+then their multipliers are added and they are stored as one PE_Function.
 The constructors also remove zero multiplier PE_Functions.
 """
 struct Sum_Of_Functions <: MultivariateFunction
@@ -347,12 +355,12 @@ struct Sum_Of_Functions <: MultivariateFunction
             for f in functions
                 if f isa Missing
                     return missing
-                elseif f isa MultivariateFunctions.Piecewise_Function
-                    error("It is not possible to construct a sum of functions from a piecewise function.")
                 elseif f isa PE_Function
                     push!(pe_funcs, f)
                 elseif f isa MultivariateFunctions.Sum_Of_Functions
                     push!(sum_funcs, f)
+                else
+                    error(string("It is not possible to construct a Sum_Of_Functions from an object of type ", typeof(f), ". Only PE_Functions and Sum_Of_Functions can be used."))
                 end
             end
             pe_sum = Sum_Of_Functions(pe_funcs)
@@ -412,9 +420,10 @@ in the thresholds dict corresponds to the xth dimension of the array of function
 then selecting from the array. For instance if the first dimension is denoted :y and it's thresholds are [-4.0,0.0,3.4] and we query at a point with
 a :y coordinate of 2.7 then the function we look up will be from the file functions_[2, ...] where ... represents the coordinates the the other dimensions.
 This is because 2.7 is greater than the second element of [-4.0,0.0,3.4] but less than the third.
-If this piecewise function were to be queried at a :y coordinate of -5.0 then a missing value will be returned. To specify piecewise functions on an
+If this piecewise function were to be queried at a :y coordinate of -5.0 then NaN will be returned. To specify piecewise functions on an
 unlimited domain the first element of the threshold can be set as -Inf. To set a limited domain on the upper end then add a Missing value to the functions_
-array. Any other (ie interior) point can also be made undefined by putting a missing value into the functions_ array.
+array. Any other (ie interior) point can also be made undefined by putting a missing value into the functions_ array. Evaluating the function in any such
+undefined region returns NaN (in both the Dict and DataFrame evaluation methods).
 
 Note that Piecewise_Function works by assigning a Sum_Of_Functions to every region within the space defined by the thresholds_ dict. It is only possible to
 specify a region as a hypercube however. More complex regions are not possible.
@@ -445,20 +454,23 @@ struct Piecewise_Function <: MultivariateFunction
         # The strategy here will be to build a piecewise function without the piecewise bits. Then loop over and add the piecewise bits to the first.
         piecewise_indices = findall(f -> f isa Piecewise_Function, functions_)
         if length(piecewise_indices) == 0
-            #converted_funcs = convert(Array{Union{Missing,Sum_Of_Functions}}, functions_)
             converted_funcs = convert(Array{Union{Missing,Sum_Of_Functions}}, functions_)
             return Piecewise_Function(converted_funcs, thresholds_)
         else
-            pwFuncs = deepcopy(functions_[piecewise_indices])
-            functions_[piecewise_indices] .= Sum_Of_Functions([PE_Function(0.0)])
-            previous_piecewise = Piecewise_Function(convert(Array{Union{Missing,Sum_Of_Functions}}, functions_), thresholds_)
+            pwFuncs = functions_[piecewise_indices]
+            non_piecewise = Array{Union{Missing,Sum_Of_Functions}}(undef, size(functions_))
+            zero_func = Sum_Of_Functions([PE_Function(0.0)])
+            for i in eachindex(functions_)
+                non_piecewise[i] = functions_[i] isa Piecewise_Function ? zero_func : functions_[i]
+            end
+            previous_piecewise = Piecewise_Function(non_piecewise, thresholds_)
             for i in 1:length(pwFuncs)
                 cube = get_function_cube(thresholds_, piecewise_indices[i])
                 pw_small = Piecewise_Function(pwFuncs[i], cube, true)
                 previous_piecewise = previous_piecewise + pw_small
             end
+            return previous_piecewise
         end
-        return previous_piecewise
     end
     function Piecewise_Function(f::Piecewise_Function, hypercube::Dict{Symbol,Tuple{Float64,Float64}}, zero_outside_cube::Bool = true)
         ks = collect(keys(f.thresholds_))
@@ -467,7 +479,8 @@ struct Piecewise_Function <: MultivariateFunction
                 hypercube[k] = (f.thresholds_[k][1],Inf)
             end
         end
-        lower, upper = [Dict{Symbol,Float64}(ks .=> val) for val in transpose.(hcat.(getindex.((hypercube,),ks)...))]
+        lower = Dict{Symbol,Float64}(k => hypercube[k][1] for k in ks)
+        upper = Dict{Symbol,Float64}(k => hypercube[k][2] for k in ks)
         lower_point = get_point_coordinates(f, lower)
         upper_point = get_point_coordinates(f, upper)
         number_in_each_dimension = (upper_point .- lower_point)
@@ -595,7 +608,9 @@ function evaluate(f::Piecewise_Function, coordinates::Dict{Symbol,Float64})
     return evaluate(func, coordinates)
 end
 function evaluate(f::Missing, coordinates::Dict{Symbol,Float64})
-    return missing
+    # Undefined regions of a Piecewise_Function evaluate to NaN (matching the DataFrame
+    # evaluation path) rather than missing.
+    return NaN
 end
 
 function underlying_dimensions(f::Piecewise_Function)
@@ -677,26 +692,24 @@ struct Sum_Of_Piecewise_Functions <: MultivariateFunction
                 push!(piecewise_funcs, f)
             elseif f isa Sum_Of_Piecewise_Functions
                 push!(sum_of_piecewise_functions_funcs, f)
+            else
+                error("A Sum_Of_Piecewise_Functions can only be created by an array of multivariate functions")
             end
         end
-        piece_length = length(piecewise_funcs)
-        funcs_length = length(functions_)
-        if length(pe_function_funcs) + length(Sum_Of_Functions_funcs) + piece_length + length(sum_of_piecewise_functions_funcs) < funcs_length
-            error("A Sum_Of_Piecewise_Functions can only be created by an array of multivariate functions")
-        elseif (funcs_length == 0) # So we have no functions input.
+        if length(functions_) == 0
             return Sum_Of_Functions([])
-        elseif (piece_length == 0) # so all are globals.
-            globals = vcat(pe_function_funcs, Sum_Of_Functions_funcs, map(x -> x.global_funcs_ , sum_of_piecewise_functions_funcs)...)
+        end
+        globals = vcat(pe_function_funcs, Sum_Of_Functions_funcs, map(x -> x.global_funcs_ , sum_of_piecewise_functions_funcs)...)
+        pieces  = vcat(piecewise_funcs, map(x -> x.functions_ , sum_of_piecewise_functions_funcs)...)
+        if length(pieces) == 0
             return Sum_Of_Functions(globals)
-        elseif (piece_length == funcs_length) # So all are piecewise
-            return new(piecewise_funcs, Sum_Of_Functions([]))
-        else # We have both function types
-            globals = vcat(pe_function_funcs, Sum_Of_Functions_funcs, map(x -> x.global_funcs_ , sum_of_piecewise_functions_funcs)...)
-            pieces = vcat(piecewise_funcs, map(x -> x.functions_ , sum_of_piecewise_functions_funcs)...)
-            return new(pieces, globals)
+        else
+            return new(pieces, Sum_Of_Functions(globals))
         end
     end
 end
+
+Base.broadcastable(e::Sum_Of_Piecewise_Functions) = Ref(e)
 
 function underlying_dimensions(f::Sum_Of_Piecewise_Functions)
     return union(union(underlying_dimensions.(f.functions_)...), union(underlying_dimensions(f.global_funcs_)) )
@@ -755,6 +768,54 @@ function ≂(a::PE_Function,b::PE_Function)
     a.multiplier_ ≂ b.multiplier_ || return false
     return a.units_ ≂ b.units_
 end
+# True if the elements of a and b can be matched one-to-one with ≂ pairs (order-insensitive).
+function _terms_match_unordered(a, b)::Bool
+    length(a) != length(b) && return false
+    matched = falses(length(b))
+    for f in a
+        found = false
+        for i in eachindex(b)
+            if !matched[i] && (f ≂ b[i])
+                matched[i] = true
+                found = true
+                break
+            end
+        end
+        found || return false
+    end
+    return true
+end
+function ≂(a::Sum_Of_Functions,b::Sum_Of_Functions)
+    # Two sums are ≂ if their terms can be matched one-to-one with ≂ PE_Functions.
+    # The match is order-insensitive. Note this is structural equality under the usual
+    # convention (units bit-exact, multipliers within tolerance): two sums that are
+    # mathematically equal but aggregated into different terms will compare as false.
+    return _terms_match_unordered(a.functions_, b.functions_)
+end
+function ≂(a::Piecewise_Function,b::Piecewise_Function)
+    # Structural comparison: the dimensions must appear in the same order with thresholds
+    # within tolerance, and the cell functions must be ≂ cell by cell. Two piecewise
+    # functions that are mathematically equal but partitioned differently compare false.
+    collect(keys(a.thresholds_)) != collect(keys(b.thresholds_)) && return false
+    for k in keys(a.thresholds_)
+        ta = a.thresholds_[k]
+        tb = b.thresholds_[k]
+        length(ta) != length(tb) && return false
+        for i in eachindex(ta)
+            # The == catches equal infinite thresholds, which ≂ cannot (Inf - Inf is NaN).
+            (ta[i] == tb[i]) || (ta[i] ≂ tb[i]) || return false
+        end
+    end
+    size(a.functions_) != size(b.functions_) && return false
+    for i in eachindex(a.functions_)
+        (a.functions_[i] ≂ b.functions_[i]) || return false
+    end
+    return true
+end
+function ≂(a::Sum_Of_Piecewise_Functions,b::Sum_Of_Piecewise_Functions)
+    (a.global_funcs_ ≂ b.global_funcs_) || return false
+    return _terms_match_unordered(a.functions_, b.functions_)
+end
 
 
 # Date support
@@ -792,7 +853,7 @@ end
 
 # DataFrame evaluation
 
-function evaluate(f::PE_Function, coordinates::DataFrame)
+function evaluate(f::PE_Function, coordinates::AbstractDataFrame)
     result = Array{Float64}(undef,size(coordinates)[1])
     result .= f.multiplier_
     if length(f.units_) == 0
@@ -814,14 +875,14 @@ function evaluate(f::PE_Function, coordinates::DataFrame)
     end
 end
 
-function evaluate(f::Sum_Of_Functions, coordinates::DataFrame)
+function evaluate(f::Sum_Of_Functions, coordinates::AbstractDataFrame)
     if length(f.functions_) == 0
         return zeros(size(coordinates, 1))
     end
     results = evaluate.(f.functions_, Ref(coordinates))
     return sum(results)
 end
-function evaluate(f::Piecewise_Function, coordinates::DataFrame)
+function evaluate(f::Piecewise_Function, coordinates::AbstractDataFrame)
     len = size(coordinates)[1]
     labels = collect(keys(f.thresholds_))
     ndims_pw = length(labels)
@@ -858,14 +919,14 @@ function evaluate(f::Piecewise_Function, coordinates::DataFrame)
         if ismissing(func)
             results[rows] .= NaN
         else
-            sub_df = coordinates[rows, :]
+            sub_df = view(coordinates, rows, :)
             sub_results = evaluate(func, sub_df)
             results[rows] = sub_results
         end
     end
     return results
 end
-function evaluate(f::Sum_Of_Piecewise_Functions, coordinates::DataFrame)
+function evaluate(f::Sum_Of_Piecewise_Functions, coordinates::AbstractDataFrame)
     result = evaluate(f.global_funcs_, coordinates)
     for i in 1:length(f.functions_)
         result = result + evaluate(f.functions_[i], coordinates)

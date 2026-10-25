@@ -33,7 +33,7 @@ end
 function expand_array(arr::Array{T} where T, vecc::Array{T,1} where T)
     sze = size(arr)
     dim = length(sze)
-    new_arr = Array{typeof(vecc[1]),dim + 1}(undef, sze..., sze[1])
+    new_arr = Array{typeof(vecc[1]),dim + 1}(undef, sze..., length(vecc))
     for i in 1:length(vecc)
         new_arr[fill(:,dim)...,i] = arr .* vecc[i]
     end

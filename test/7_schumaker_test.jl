@@ -18,15 +18,15 @@ end
 y = ff.(x)
 
 splinex = create_quadratic_spline(x,y; dim_name = :x)
-collect(keys(splinex.thresholds_))[1] == :x
+@test collect(keys(splinex.thresholds_))[1] == :x
 
 spline = create_quadratic_spline(x,y)
 # Test if interpolating
-all(abs.(evaluate.(Ref(spline), x) .- y) .< tol)
+@test all(abs.(evaluate.(Ref(spline), x) .- y) .< tol)
 
 # Testing third derivatives
 third_derivatives = evaluate.(Ref(derivative(derivative(derivative(spline)))), x)
-maximum(third_derivatives) < tol
+@test maximum(third_derivatives) < tol
 
 # Testing Integrals
 function analytic_integral(lhs,rhs)
@@ -40,7 +40,7 @@ rhs = StartDate + Dates.Month(16)
 numerical_integral  = integral(spline, lhs,rhs)
 
 analytical = analytic_integral(lhs,rhs)
-abs(  analytical - numerical_integral  ) < 0.001
+@test abs(  analytical - numerical_integral  ) < 0.001
 
 
 #= Speed test of MultivariateFunctions vs Univariate vs SchumakerSpline

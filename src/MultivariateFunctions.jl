@@ -3,11 +3,14 @@ module MultivariateFunctions
 using Dates
 using SchumakerSpline
 using GLM
-import GLM: FrequencyWeights
-using DataFrames: DataFrame
+# fit! is imported (rather than defined fresh) so that the methods defined here extend the
+# same generic function that GLM/StatsAPI export. Otherwise `using MultivariateFunctions, GLM`
+# gives a name clash on fit! and users have to qualify every call.
+import GLM: FrequencyWeights, fit!
+using DataFrames: DataFrame, AbstractDataFrame
 using DataStructures: OrderedDict
 using Combinatorics: permutations
-using LinearAlgebra: Hermitian, inv, pinv, det, isposdef
+using LinearAlgebra: Hermitian, cholesky, inv, issuccess, pinv, isposdef
 using Optim
 
 # This includes functions for use of MultivariateFunctions with dates.

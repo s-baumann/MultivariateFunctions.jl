@@ -55,7 +55,7 @@ function create_ols_approximation(dd::DataFrame, y::Symbol, model::Array; dropco
     else
         reg = fit(LinearModel, X, y; dropcollinear=dropcollinear, weights=FrequencyWeights(weights))
     end
-    coefficients = reg.pp.beta0
+    coefficients = coef(reg)
     updated_model = Sum_Of_Piecewise_Functions(model .* coefficients)
     return updated_model, reg
 end

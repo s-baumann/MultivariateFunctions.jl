@@ -164,7 +164,10 @@ function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symb
         return fun
     end
 
-    y_vec = Vector{Float64}(dd[!, y])
+    # The NNLS refits below only use the piecewise basis columns, and the global funcs
+    # (the linear floor terms) are re-added unchanged at the end. Their contribution must
+    # therefore be taken out of the target first, or it would be counted twice.
+    y_vec = _target_minus_globals(dd, y, fun.global_funcs_)
     X_full = hcat(evaluate.(array_of_funcs, Ref(dd))...)
     keep_cols = collect(1:n_funcs)
 
@@ -203,10 +206,12 @@ function _trim_monotonic(fun::Sum_Of_Piecewise_Functions, dd::DataFrame, y::Symb
         deleted += 1
     end
 
-    # Final NNLS fit with remaining basis functions
+    # Final NNLS fit with remaining basis functions. Zero-coefficient pieces are dropped
+    # (matching create_monotonic_mars_spline).
     X = X_full[:, keep_cols]
     coefficients = fit_nnls(X, y_vec; weights=weights)
-    updated_model = Sum_Of_Piecewise_Functions(array_of_funcs[keep_cols] .* coefficients)
+    nonzero = findall(c -> c != 0.0, coefficients)
+    updated_model = Sum_Of_Piecewise_Functions(array_of_funcs[keep_cols][nonzero] .* coefficients[nonzero])
 
     # Re-add global funcs (linear floor terms)
     if length(fun.global_funcs_.functions_) > 0
@@ -427,7 +432,7 @@ function fit!(fitter::MultivariateAdjustedFitter, dd::DataFrame, y::Symbol, grou
 
     for g in unique(groups)
         mask = groups .== g
-        f_vals = evaluate(newfun, dd[mask, :])
+        f_vals = evaluate(newfun, view(dd, mask, :))
         y_g = Float64.(y_vals[mask])
         w_g = weights === nothing ? nothing : weights[mask]
         n_g = length(y_g)

@@ -55,7 +55,7 @@ function change_base(f::PE_Function, new_bases::BaseMap)
             dims_dict[dim] = [(1.0, f_unit)]
         end
     end
-    array_of_tups = [TupleUnitMap(dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),dims)...))...,)]
+    array_of_tups = vec([TupleUnitMap(dims .=> val) for val in Iterators.product(getindex.((dims_dict,),dims)...)])
     array_of_pes = PE_Function.(f.multiplier_, array_of_tups)
     return array_of_pes
 end
@@ -92,7 +92,7 @@ end
    A scalar can be subtracted from a Multivariate Function. This action promotes a
    PE_Function to a Sum_Of_Functions. The type of all other MultivariateFunctions is unchanged.
 """
-function -(f::PE_Function, number::Float64)
+function -(f::MultivariateFunction, number::Float64)
     return +(f, -number)
 end
 """
@@ -116,50 +116,22 @@ end
    Note that the opposite operation cannot be done. While f / 5 is permitted 5 / f is not supported by this package.
    It is not possible to divide by a function.
 """
-function /(f::PE_Function, number::Float64)
-    return *(f, 1/number )
+function /(f::MultivariateFunction, number::Float64)
+    return *(f, 1.0/number)
 end
 
-function +(f::PE_Function, number::Int)
-    number_as_float = convert(Float64, number)
-    return +(f, number_as_float)
+# Integer scalars are converted to Float64 and dispatched to the Float64 methods above.
+function +(f::MultivariateFunction, number::Int)
+    return +(f, convert(Float64, number))
 end
-function -(f::PE_Function, number::Int)
-    number_as_float = convert(Float64, number)
-    return -(f, number_as_float)
+function -(f::MultivariateFunction, number::Int)
+    return -(f, convert(Float64, number))
 end
-function *(f::PE_Function, number::Int)
-    number_as_float = convert(Float64, number)
-    return *(f, number_as_float)
+function *(f::MultivariateFunction, number::Int)
+    return *(f, convert(Float64, number))
 end
-function /(f::PE_Function, number::Int)
-    number_as_float = convert(Float64, number)
-    return /(f, number_as_float)
-end
-"""
-   ^(f::MultivariateFunction,number::Int)
-
-   A Multivariate can be raised by a positive Integer power. This will generally promote a PE_Function to a Sum_Of_Functions.
-   Note that the opposite operation cannot be done. While f ^ 5 is permitted 5 ^ f is not supported by this package.
-   It is not possible to raise by the power of a function.
-"""
-function ^(f::PE_Function, number::Int)
-    if number < 0
-        error("Negative powers are not supported.")
-    elseif number == 0
-        return PE_Function(1.0)
-    elseif number == 1
-        return f
-    else
-        val = f * f
-        for i in 3:number
-            val = val * f
-        end
-        return val
-    end
-end
-function ^(f::PE_Function, number::Float64)
-    error("Cannot raise a PE_Function to a float value.")
+function /(f::MultivariateFunction, number::Int)
+    return /(f, convert(Float64, number))
 end
 """
     +(f1::MultivariateFunction, f2::MultivariateFunction)
@@ -169,7 +141,7 @@ function +(f1::PE_Function, f2::PE_Function)
     return Sum_Of_Functions([f1,f2])
 end
 function +(f1::PE_Function, f2::Sum_Of_Functions)
-    return Sum_Of_Functions([f1,f2])
+    return Sum_Of_Functions(vcat(f1, f2.functions_))
 end
 function +(f1::PE_Function, f2::Piecewise_Function)
     return Piecewise_Function(f1 .+ f2.functions_, f2.thresholds_)
@@ -269,32 +241,19 @@ function +(f::Sum_Of_Functions,number::Float64)
     constant_function = PE_Function(number)
     return Sum_Of_Functions(vcat(f.functions_, [constant_function]))
 end
-function -(f::Sum_Of_Functions, number::Float64)
-    return +(f, -number)
-end
 function *(f::Sum_Of_Functions, number::Float64)
+    if number ≂ 0.0
+        return Sum_Of_Functions(PE_Function[])
+    end
     return Sum_Of_Functions(Val(:unsafe), f.functions_ .* number)
 end
-function /(f::Sum_Of_Functions, number::Float64)
-    return *(f, 1/number )
-end
+"""
+   ^(f::MultivariateFunction,number::Int)
 
-function +(f::Sum_Of_Functions, number::Int)
-    number_as_float = convert(Float64, number)
-    return +(f, number_as_float)
-end
-function -(f::Sum_Of_Functions, number::Int)
-    number_as_float = convert(Float64, number)
-    return -(f, number_as_float)
-end
-function *(f::Sum_Of_Functions, number::Int)
-    number_as_float = convert(Float64, number)
-    return *(f, number_as_float)
-end
-function /(f::Sum_Of_Functions, number::Int)
-    number_as_float = convert(Float64, number)
-    return /(f, number_as_float)
-end
+   A Multivariate can be raised by a positive Integer power. This will generally promote a PE_Function to a Sum_Of_Functions.
+   Note that the opposite operation cannot be done. While f ^ 5 is permitted 5 ^ f is not supported by this package.
+   It is not possible to raise by the power of a function.
+"""
 function ^(f::MultivariateFunction, number::Int)
     if number < 0
         error("Negative powers are not supported.")
@@ -310,22 +269,18 @@ function ^(f::MultivariateFunction, number::Int)
         return val
     end
 end
-function ^(f::Sum_Of_Functions, number::Float64)
-    error("Cannot raise a Sum_Of_Functions to a float value.")
+function ^(f::MultivariateFunction, number::Float64)
+    error("Cannot raise a MultivariateFunction to a float power.")
 end
 
 function +(f1::Sum_Of_Functions, f2::Sum_Of_Functions)
-    return Sum_Of_Functions([f1,f2])
+    return Sum_Of_Functions(vcat(f1.functions_, f2.functions_))
 end
 function +(f1::Sum_Of_Functions, f2::Piecewise_Function)
     if length(f1.functions_) == 0
         return f2
     end
-    funcs = f2.functions_ .+ f1.functions_[1]
-    for i in 2:length(f1.functions_)
-        funcs = funcs .+ f1.functions_[i]
-    end
-    return Piecewise_Function(funcs, f2.thresholds_)
+    return Piecewise_Function(f2.functions_ .+ f1, f2.thresholds_)
 end
 function +(f1::Sum_Of_Functions, f2::Sum_Of_Piecewise_Functions)
     return Sum_Of_Piecewise_Functions(f2.functions_,f2.global_funcs_ + f1)
@@ -339,7 +294,7 @@ end
 
 
 function -(f1::Sum_Of_Functions, f2::Sum_Of_Functions)
-    return Sum_Of_Functions([f1,-1*f2])
+    return Sum_Of_Functions(vcat(f1.functions_, (-1.0*f2).functions_))
 end
 function -(f1::Sum_Of_Functions, f2::Piecewise_Function)
     return +(f1, -1 * f2)
@@ -364,19 +319,10 @@ function *(f1::Sum_Of_Functions,f2::Sum_Of_Functions)
     return Sum_Of_Functions(results)
 end
 function *(f1::Sum_Of_Functions, f2::Piecewise_Function)
-    f1_funcs = f1.functions_
-    if length(f1_funcs) == 0
+    if length(f1.functions_) == 0
         return PE_Function(0.0)
     end
-    funcs = f1_funcs[1] .* f2.functions_
-    if length(f1_funcs) == 1
-        return Piecewise_Function(funcs, f2.thresholds_)
-    else
-        for i in 2:length(f1_funcs)
-            funcs = funcs .+ (f1_funcs[i] .* f2.functions_)
-        end
-        return Piecewise_Function(funcs, f2.thresholds_)
-    end
+    return Piecewise_Function(f1 .* f2.functions_, f2.thresholds_)
 end
 function *(f1::Sum_Of_Functions, f2::Sum_Of_Piecewise_Functions)
     return f1 * convert(Piecewise_Function, f2)
@@ -395,31 +341,9 @@ function +(f::Piecewise_Function,number::Float64)
     functions_with_addition = f.functions_ .+ number
     return Piecewise_Function(functions_with_addition, f.thresholds_)
 end
-function -(f::Piecewise_Function,number::Float64)
-    return +(f,-1.0*number)
-end
 function *(f::Piecewise_Function,number::Float64)
     functions_with_multiplication = f.functions_ .* number
     return Piecewise_Function(functions_with_multiplication, f.thresholds_)
-end
-function /(f::Piecewise_Function,number::Float64)
-    return *(f, 1.0/number)
-end
-function +(f::Piecewise_Function,number::Int)
-    number_as_float = convert(Float64, number)
-    return +(f,number_as_float)
-end
-function -(f::Piecewise_Function,number::Int)
-    number_as_float = convert(Float64, number)
-    return -(f,number_as_float)
-end
-function *(f::Piecewise_Function,number::Int)
-    number_as_float = convert(Float64, number)
-    return *(f,number_as_float)
-end
-function /(f::Piecewise_Function,number::Int)
-    number_as_float = convert(Float64, number)
-    return /(f,number_as_float)
 end
 
 function +(f1::Piecewise_Function,f2::Piecewise_Function)
@@ -461,30 +385,8 @@ end
 function +(f::Sum_Of_Piecewise_Functions,number::Float64)
     return Sum_Of_Piecewise_Functions(f.functions_, f.global_funcs_ + number )
 end
-function -(f::Sum_Of_Piecewise_Functions,number::Float64)
-    return +(f,-1.0*number)
-end
 function *(f::Sum_Of_Piecewise_Functions,number::Float64)
     return Sum_Of_Piecewise_Functions(number .* f.functions_, number * f.global_funcs_)
-end
-function /(f::Sum_Of_Piecewise_Functions,number::Float64)
-    return *(f, 1.0/number)
-end
-function +(f::Sum_Of_Piecewise_Functions,number::Int)
-    number_as_float = convert(Float64, number)
-    return +(f,number_as_float)
-end
-function -(f::Sum_Of_Piecewise_Functions,number::Int)
-    number_as_float = convert(Float64, number)
-    return -(f,number_as_float)
-end
-function *(f::Sum_Of_Piecewise_Functions,number::Int)
-    number_as_float = convert(Float64, number)
-    return *(f,number_as_float)
-end
-function /(f::Sum_Of_Piecewise_Functions,number::Int)
-    number_as_float = convert(Float64, number)
-    return /(f,number_as_float)
 end
 
 
@@ -557,7 +459,12 @@ end
 
 ###
 function convert_to_linearly_rescale_inputs(f::PE_Unit, alpha::Float64, beta::Float64)
-    # We want the change the function so that whenever we put in x it is like we put in alpha x + beta.
+    # This rescales the function so that the new function g satisfies g(alpha*x + beta) = f(x).
+    # Equivalently g(x) = f((x - beta)/alpha). For instance the chebyshev approximation uses this
+    # to map polynomials defined on [-1,1] onto an arbitrary interval [left, right].
+    if alpha ≂ 0.0
+        error("Cannot linearly rescale inputs with alpha of zero as the rescaling is not invertible.")
+    end
     beta = beta / alpha
     alpha = 1.0/alpha
     new_base_ = (f.base_ + beta)/alpha
@@ -596,6 +503,9 @@ end
 function convert_to_linearly_rescale_inputs(f::Piecewise_Function, alpha_beta::Dict{Symbol,Tuple{Float64,Float64}})
     new_thresholds = OrderedDict{Symbol,Array{Float64,1}}()
     for k in keys(f.thresholds_)
+        if alpha_beta[k][1] <= 0.0
+            error("convert_to_linearly_rescale_inputs needs alpha > 0 for every threshold dimension of a Piecewise_Function. A nonpositive alpha would stop the rescaled thresholds being increasing.")
+        end
         alpha = alpha_beta[k][1]
         beta  = alpha_beta[k][2]
         new_thresholds[k] = (f.thresholds_[k] .* alpha) .+ beta

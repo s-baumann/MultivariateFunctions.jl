@@ -239,15 +239,24 @@ catch e
 end
 
 # All tests
-test1_type && test1_rss && test1_mono &&
-test2_mono &&
-test3_mono_x && test3_mono_z &&
-test4_mono_x && test4_mono_z &&
-test5_rss &&
-test6_type &&
-test7_strict &&
-test8_strict &&
-test9_x && test9_z &&
-test10 &&
-test11_x && test11_z && test11_w &&
-test12_invalid_dir && test12_missing_dir && test12_neg_grad
+@test test1_type
+@test test1_rss
+@test test1_mono
+@test test2_mono
+@test test3_mono_x
+@test test3_mono_z
+@test test4_mono_x
+@test test4_mono_z
+@test test5_rss
+@test test6_type
+@test test7_strict
+@test test8_strict
+@test test9_x
+@test test9_z
+@test test10
+@test test11_x
+@test test11_z
+@test test11_w
+@test test12_invalid_dir
+@test test12_missing_dir
+@test test12_neg_grad

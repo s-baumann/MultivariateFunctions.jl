@@ -17,8 +17,8 @@ function years_between(until::Dates.Day, from::Dates.Day)
 end
 
 """
-    years_between(a::Date, b::Date)
-    years_between(a::Dates.Day, b::Dates.Day)
+    years_from_global_base(a::Date)
+    years_from_global_base(a::Dates.Day)
 
 Returns the number of years that have elapsed since 1-Jan-2000. For the purposes of this calculation
 there are 365.2422 days in a year.

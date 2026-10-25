@@ -34,7 +34,7 @@ function create_quadratic_spline(schum::Schumaker; dim_name::Symbol = default_sy
     for i in 1:number_of_intervals
         quadratic = PE_Function(coefficients[i,1], UnitMap([dim_name => PE_Unit(0.0, starts_[i], 2)]))
         linear    = PE_Function(coefficients[i,2], UnitMap([dim_name => PE_Unit(0.0, starts_[i], 1)]))
-        constant  = PE_Function(coefficients[i,3], UnitMap([dim_name => PE_Unit(0.0, 0.0       , 0)]))
+        constant  = PE_Function(coefficients[i,3])
         polynomial = Sum_Of_Functions([quadratic, linear, constant])
         funcs_[i] = polynomial
     end
@@ -73,6 +73,8 @@ end
     create_constant_interpolation_to_left(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
 
 Create a piecewise constant one-dimensional function which carries values from the right to the left.
+At a data point x_i the function evaluates to y_i (the thresholds sit one ulp above each knot, since
+Piecewise_Function cells include their left endpoint).
 """
 function create_constant_interpolation_to_left(x::Array{Date,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
     x_Float = years_from_global_base.(x)
@@ -85,7 +87,7 @@ function create_constant_interpolation_to_left(x::Array{<:DatePeriod,1},y::Array
 end
 
 function create_constant_interpolation_to_left(x::Array{Float64,1},y::Array{Float64,1}; dim_name::Symbol = default_symbol)
-    x_ = vcat(-Inf,x[1:(length(x)-1)])
+    x_ = vcat(-Inf, nextfloat.(x[1:(length(x)-1)]))
     funcs_ = PE_Function.(y)
     thresholds_ = OrderedDict{Symbol,Array{Float64,1}}(dim_name => x_)
     return Piecewise_Function(funcs_, thresholds_)

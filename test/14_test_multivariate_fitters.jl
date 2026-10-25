@@ -234,22 +234,30 @@ val19_dict = fitter10(Dict(:x => 1.0, :z => 0.5), :B)
 test19 = length(val19_df) == 3 && isa(val19_dict, Float64)
 
 # All tests
-test1_fitted && test1_type && test1_times &&
-test2_times && test2_three &&
-test3 &&
-test4 &&
-test5 &&
-test6 &&
-test7 &&
-test8 &&
-test9 && test9b &&
-test10_times && test10_groups && test10_fun && test10_different &&
-test11 &&
-test12 &&
-test13 &&
-test14 &&
-test15_fitter && test15_adj &&
-test16 &&
-test17 &&
-test18 &&
-test19
+@test test1_fitted
+@test test1_type
+@test test1_times
+@test test2_times
+@test test2_three
+@test test3
+@test test4
+@test test5
+@test test6
+@test test7
+@test test8
+@test test9
+@test test9b
+@test test10_times
+@test test10_groups
+@test test10_fun
+@test test10_different
+@test test11
+@test test12
+@test test13
+@test test14
+@test test15_fitter
+@test test15_adj
+@test test16
+@test test17
+@test test18
+@test test19

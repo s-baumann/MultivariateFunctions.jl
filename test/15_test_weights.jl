@@ -165,6 +165,15 @@ fitted12_w = evaluate(model12_w[1], dd)
 test12 = maximum(abs.(fitted12_dup .- fitted12_w)) < 1e-4
 
 # All tests
-test1 && test2 && test3 && test4 && test5 &&
-test6 && test7 && test8 && test9 &&
-test10 && test11 && test12
+@test test1
+@test test2
+@test test3
+@test test4
+@test test5
+@test test6
+@test test7
+@test test8
+@test test9
+@test test10
+@test test11
+@test test12

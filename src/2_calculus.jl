@@ -32,7 +32,7 @@ function derivative(f::PE_Function, derivs::Dict{Symbol,Int})
     fdims = Set(first(p) for p in f.units_)
 
     extra_dims = setdiff(dims, fdims)
-    if length(extra_dims) > 0 && maximum(get.(Ref(derivs), [extra_dims...], 0)) >= 1
+    if any(d -> derivs[d] >= 1, extra_dims)
         return PE_Function()
     end
     active_dims = [d for d in dims if derivs[d] > 0]
@@ -55,7 +55,7 @@ function derivative(f::PE_Function, derivs::Dict{Symbol,Int})
             dims_dict[dimen] = Array{Tuple{Float64,PE_Unit},1}([(0.0, PE_Unit())])
         end
     end
-    array_of_tups = [TupleUnitMap(active_dims .=> val) for val in (collect(Iterators.product(getindex.((dims_dict,),active_dims)...))...,)]
+    array_of_tups = vec([TupleUnitMap(active_dims .=> val) for val in Iterators.product(getindex.((dims_dict,),active_dims)...)])
     array_of_pes = PE_Function.(1.0, array_of_tups)
     remaining_dims = PE_Function(f.multiplier_, remaining_units)
     final_result = remaining_dims .* array_of_pes
@@ -216,17 +216,16 @@ function find_local_optima(func::MultivariateFunction, initial_guess::Dict{Symbo
     iter = 1
     while iter <= max_iters
         hessn = evaluate(hess, guess)
-        inverse_hessian = inv(hessn)
         evaluated_jacobian = evaluate.(jacob, Ref(guess))
         if all(abs.(evaluated_jacobian) .< convergence_tol)
             val = evaluate(func,guess)
             if print_reports
                 println(string("Converged. The converged value of f is ", val, "."))
             end
-            is_positive_definite = all(det(hessn[1:k, 1:k]) > 0 for k in 1:size(hessn, 1))
+            is_positive_definite = isposdef(hessn)
             return NamedTuple{(:coordinates, :value, :convergence, :positive_definite_hessian)}((guess, val, true, is_positive_definite))
         end
-        step_ = inverse_hessian * evaluated_jacobian
+        step_ = hessn \ evaluated_jacobian
         x = get.(Ref(guess), dimensions, 0)
         x_prime = x - step_size * step_
         guess = Dict{Symbol,Float64}(dimensions .=> x_prime)
@@ -242,8 +241,11 @@ end
 
 """
     uniroot(f::MultivariateFunction, initial_guess::Dict{Symbol,Float64}; step_size::Float64 = 1.0, max_iters::Int = 40, convergence_tol::Float64 = 1e-10, print_reports::Bool = false)
-This takes the analytical jacobian and hessian of a function and uses them to find a nearby
-root. It finds a root using Newton's method.
+This takes the analytical jacobian of a function and uses it to find a nearby root with
+Newton's method. For a function of one variable this is the textbook iteration
+x' = x - f(x)/f'(x). For a function of several variables the equation f(x) = 0 is
+underdetermined and the minimum-norm Newton step is used:
+x' = x - f(x) * ∇f(x) / ‖∇f(x)‖², which moves towards the nearest point on the zero set.
 """
 function uniroot(f::MultivariateFunction, initial_guess::Dict{Symbol,Float64}; step_size::Float64 = 1.0, max_iters::Int = 40, convergence_tol::Float64 = 1e-10, print_reports::Bool = false)
     dimensions = collect(keys(initial_guess))
@@ -263,7 +265,8 @@ function uniroot(f::MultivariateFunction, initial_guess::Dict{Symbol,Float64}; s
             end
             return NamedTuple{(:coordinates, :value, :convergence)}((guess,val, true))
         end
-        step_ = val ./ evaluate.(jacob, Ref(guess))
+        grad = evaluate.(jacob, Ref(guess))
+        step_ = (val / sum(grad .^ 2)) .* grad
         if print_reports
             println(string("Iterate: ",iter,"  The value of f is ", val, " and the next step's Euclidean distance is (excluding step_size multiplier) ", sqrt(sum(step_ .^ 2))))
         end
@@ -300,29 +303,26 @@ function indefinite_integral(u::PE_Unit, incoming_multiplier::Float64 = 1.0)# In
     end
 end
 
+# Expresses an indefinite integral (an array of multiplier-unit tuples) as a
+# Sum_Of_Functions in the dimension named by sym.
+function indefinite_integral_sum(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, sym::Symbol)
+    return Sum_Of_Functions([PE_Function(mult, TupleUnitMap([sym => tup])) for tup in indef])
+end
+
 function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Symbol, right::Symbol)# Intentially changing name so this is not exported.
-    converted = (collect(Iterators.product(((indef,))...))...,)
-    rights = [TupleUnitMap([right] .=> val) for val in converted]
-    lefts  = [TupleUnitMap([left] .=> val) for val in converted]
-    return Sum_Of_Functions(PE_Function.(mult, rights)) - Sum_Of_Functions(PE_Function.(mult, lefts))
+    return indefinite_integral_sum(mult, indef, right) - indefinite_integral_sum(mult, indef, left)
 end
 function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Float64, right::Symbol)# Intentially changing name so this is not exported.
-    converted = (collect(Iterators.product(((indef,))...))...,)
-    rights = [TupleUnitMap([right] .=> val) for val in converted]
-    lefts  = [TupleUnitMap([:left] .=> val) for val in converted]
-    return Sum_Of_Functions(PE_Function.(mult, rights)) - sum(evaluate.(PE_Function.(mult, lefts), Ref(Dict{Symbol,Float64}(:left => left))))
+    left_value = evaluate(indefinite_integral_sum(mult, indef, :left), Dict{Symbol,Float64}(:left => left))
+    return indefinite_integral_sum(mult, indef, right) - left_value
 end
 function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Symbol, right::Float64)# Intentially changing name so this is not exported.
-    converted = (collect(Iterators.product(((indef,))...))...,)
-    rights = [TupleUnitMap([:right] .=> val) for val in converted]
-    lefts  = [TupleUnitMap([left] .=> val) for val in converted]
-    return evaluate.(Sum_Of_Functions(PE_Function.(mult, rights)), Ref(Dict{Symbol,Float64}(:right => right))   ) - Sum_Of_Functions(PE_Function.(mult, lefts))
+    right_value = evaluate(indefinite_integral_sum(mult, indef, :right), Dict{Symbol,Float64}(:right => right))
+    return right_value - indefinite_integral_sum(mult, indef, left)
 end
 function apply_limits(mult::Float64, indef::Array{Tuple{Float64,PE_Unit}}, left::Float64, right::Float64)# Intentially changing name so this is not exported.
-    converted = (collect(Iterators.product(((indef,))...))...,)
-    converted_again = [TupleUnitMap([default_symbol] .=> val) for val in converted]
-    funcs = Sum_Of_Functions(PE_Function.(mult, converted_again))
-    return evaluate.(funcs, right) - evaluate.(funcs, left)
+    funcs = indefinite_integral_sum(mult, indef, default_symbol)
+    return evaluate(funcs, right) - evaluate(funcs, left)
 end
 
 const IntegrationLimitDict = Union{Dict{Symbol,Tuple{Union{Symbol,Float64},Union{Symbol,Float64}}},Dict{Symbol,Tuple{Symbol,Symbol}},Dict{Symbol,Tuple{Float64,Float64}},Dict{Symbol,Tuple{Symbol,Float64}},Dict{Symbol,Tuple{Float64,Symbol}}}
@@ -336,7 +336,10 @@ and the right member the upper limite. Each can be a Float64 or a symbol. If a s
 this will get incorporated as a dimension in the MultivariateFunction created by the integral function.
 """
 function integral(f::PE_Function, limits::IntegrationLimitDict)
-    if length(f.units_) == 0
+    # The fast path for constants only works for numeric limits. A constant with a Symbol
+    # limit falls through to the general machinery below, which returns a function of that
+    # symbol (via the limits-without-units loop).
+    if (length(f.units_) == 0) && all(lims -> (lims[1] isa Float64) && (lims[2] isa Float64), values(limits))
         volume_of_cube = 1.0
         for dimen in keys(limits)
             volume_of_cube = volume_of_cube * (limits[dimen][2] - limits[dimen][1])
@@ -388,6 +391,8 @@ end
 This gives a function representing the integral of a function, f, with limits in each dimension given by a dict. The dict should
 contain a tuple for each variable in the function. The left member of the tuple contains the lower limit
 and the right member the upper limite. Each must be a Float64 (Support for inputting a symbol is planned but not yet implemented).
+If the integration range overlaps a region where the piecewise function is undefined (a missing cell, or a point below the
+lowest threshold) then NaN is returned, consistent with how undefined regions evaluate.
 """
 function hypercubes_to_integrate(f::Piecewise_Function, lims::Dict{Symbol,Tuple{Float64,Float64}})
     limits = Dict{Symbol,Tuple{Float64,Float64}}()
@@ -408,8 +413,7 @@ function hypercubes_to_integrate(f::Piecewise_Function, lims::Dict{Symbol,Tuple{
         new_dict[dimen] = censored_thresholds2
     end
     lengths_minus_one = length.(get.(Ref(new_dict),ks,0)) .- 1
-    indices = (collect(collect(Iterators.product(UnitRange.(1, lengths_minus_one)...)))...,)
-    indices = collect(collect.(indices))
+    indices = vec(collect(Iterators.product(UnitRange.(1, lengths_minus_one)...)))
     total_len = length(indices)
     new_cubes = Array{Dict{Symbol,Tuple{Float64,Float64}},1}(undef,total_len)
     for i in 1:total_len
@@ -423,6 +427,11 @@ function hypercubes_to_integrate(f::Piecewise_Function, lims::Dict{Symbol,Tuple{
         new_cubes[i] = new_cube
     end
     return new_cubes
+end
+
+# Undefined regions of a Piecewise_Function integrate to NaN (consistent with evaluation).
+function integral(f::Missing, limits::Dict{Symbol,Tuple{Float64,Float64}})
+    return NaN
 end
 
 function integral(f::Piecewise_Function, limits::Dict{Symbol,Tuple{Float64,Float64}})
